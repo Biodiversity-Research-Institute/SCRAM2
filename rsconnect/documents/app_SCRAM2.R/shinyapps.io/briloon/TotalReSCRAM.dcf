@@ -1,0 +1,13 @@
+name: TotalReSCRAM
+title: TotalReSCRAM
+username: briloon
+account: briloon
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 9848180
+bundleId: 7679879
+url: https://briloon.shinyapps.io/TotalReSCRAM/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData

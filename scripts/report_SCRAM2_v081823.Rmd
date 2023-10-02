@@ -1,0 +1,819 @@
+---
+title: 'Summary of simulation results from SCRAM: a stochastic collision risk assessment for movement data'
+date: "`r format(Sys.time(), '%d %B %Y')`"
+geometry: margin=0.75in
+output: pdf_document
+params:
+  SCRAM_version: NA
+  project: NA
+  modeler: NA
+  run_start_time: NA
+  run_end_time: NA
+  iterations: NA
+  threshold: NA
+  migration_calc_type: NA
+  migr_front_type: NA
+  migr_front_width: NA
+  model_option: NA
+  model_type: NA
+  model_cell: NA
+  trans_prop: NA
+  model_output: NA
+  daily_cell_flux: NA
+  spp_move_data_summary: NA
+  prob_exceed: NA
+  species_labels: NA
+  species_popn_data: NA
+  species_popn_assumptions: NA
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+- \usepackage[normalem]{ulem}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot[LO,LE]{`r params$project`, `r params$modeler`}
+- \fancyhead[RO,RE]{SCRAM v. `r params$SCRAM_version`}
+- \fancyfoot[CO,CE]{`r params$run_end_time`}
+- \fancyfoot[LE,RO]{\thepage}
+---
+  <!-- header-includes required because won't re-run after first report download -->
+<!-- Fix: https://stackoverflow.com/questions/46080853/why-does-rendering-a-pdf-from-rmarkdown-require-closing-rstudio-between-renders/46083308#46083308 -->
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+options(tinytex.verbose = TRUE)
+
+# load(file = "scripts/test_params.RData")
+
+```
+
+\begin{center}
+\includegraphics[width=1\textwidth]{SCRAM_logo_2_4inch.jpg}
+\end{center}
+
+<br>
+<br>
+
+SCRAM was developed by Biodiversity Research Institute, the University of Rhode Island, and the U.S. Fish and Wildlife Service with funding from the Bureau of Ocean Energy Management.
+
+<br>
+<br>
+
+\begin{center}
+\includegraphics[width=0.2\textwidth]{BRI_color_logo_no_words.png}
+\includegraphics[width=0.2\textwidth]{URI.png}
+\includegraphics[width=0.1\textwidth]{USFWS.png}
+\includegraphics[width=0.2\textwidth]{BOEM.png}
+\end{center}
+
+<br>
+<br>
+
+\newpage
+
+## SCRAM run details 
+
+<br>
+<br>
+
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE}
+  
+option_names <-  c("Option 1: faster approximation", NA,"Option 3: slower but more precise assessment")
+
+if(params$migration_calc_type == "occup_model") {
+  model_txt <- paste0("Type of model employed: ", params$model_type , "\n")
+} else { #annex 6
+  model_txt <- paste0("Migration front type: ", params$migr_front_type, "\n",
+          "Migration front width (km): ",params$migr_front_width , "\n")
+  }
+
+cat(paste0("SCRAM - the Stochastic Collision Risk Assessment for Movement", "\n",
+          "Version: ", params$SCRAM_version, "\n",
+          "Iterations: ", params$iterations, "\n", 
+          "Migration calculation type: ", gsub("_", " ", params$migration_calc_type), "\n",
+           model_txt,
+          "CRM model option: ", option_names[as.numeric(params$model_option)], "\n", 
+          # "Proportion transient in model cell: ", round(as.numeric(params$model_output$transient_corr), 3), "\n",
+          "Project: ", params$project, "\n",
+          "Modeler: ", params$modeler, "\n",
+          "The model run was started at: ",  format(params$run_start_time, "%a %b %d %X %Y %Z", tz = "America/New_York"), "\n",
+          "The model run was completed at: ",  format(params$run_end_time, "%a %b %d %X %Y %Z", tz = "America/New_York"), "\n",
+          paste0(params$prob_exceed, collapse="\n")
+          ))
+
+num_species <- 1
+num_turb_mods <- length(params$model_output[[1]])
+
+```
+
+\newpage
+
+## Model inputs used for this analysis
+
+<br>
+<br>
+
+```{r, table1, echo=FALSE, message=FALSE, warning=FALSE}
+
+#get fields for creating table. 
+#not sure where "Upwind Prop." comes from in the code, also need to deal with avoid_basic and avoid_ext
+if(params$model_option == "1") {
+  params_list <- c("avoid_bsc", "wing_span", "body_lt", "flt_speed")  
+  tbl_names <- c("Species", "Turbine model", "Avoidance basic", "Wing span", "Body length", "Speed")
+} else if(params$model_option == "3") {
+  params_list <- c("avoid_ext", "wing_span", "body_lt", "flt_speed")  
+  tbl_names <- c("Species", "Turbine model", "Avoidance extd.", "Wing span", "Body length", "Speed")
+}
+
+#col_names[col_names == "AvoidanceExtended"] <- "Avoidance"
+bird_params_table <- mat.or.vec(num_turb_mods, (length(params_list) + 2))
+
+for(s in 1:num_species){
+  for(t in 1:num_turb_mods){
+
+    model_out <- params$model_output[[s]][[t]]
+    # model_out <- params$model_output[[1]][[1]]
+    sampled_pars <- model_out$sampled_pars
+    index_a <- (num_turb_mods*s) - (num_turb_mods - t)
+
+    bird_params_table[index_a, 1] <- gsub("_", " ", model_out$species)
+    bird_params_table[index_a, 2] <- model_out$turbine_model
+    
+    z = 1
+    for(field in params_list){
+      bird_params_table[index_a, (z + 2)] <- paste0(round(sampled_pars[[field]]$mean, 3), " (", 
+                                                    round(sampled_pars[[field]]$pctl_2.5, 3), ", ", 
+                                                    round(sampled_pars[[field]]$pctl_97.5, 3), ")")
+      z = z + 1
+    }
+  }
+}
+
+colnames(bird_params_table) <- tbl_names
+bird_params_table <- as.data.frame(bird_params_table)
+bird_params_table <- bird_params_table[order(bird_params_table$Species, bird_params_table$`Turbine model`),]
+
+#https://stackoverflow.com/questions/53153537/rmarkdown-setting-the-position-of-kable
+#if you find HOLD_position is not powerful enough to literally PIN your table in the exact position, you may want to 
+# use HOLD_position, which is a more powerful version of this feature
+# percent symbol causing issues in caption
+kbl(bird_params_table, booktabs=T, caption = "Species input parameters (mean and 95 perc. range).", row.names = F) %>%
+  kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+  row_spec(0,bold=T) %>% 
+  column_spec(1,bold=T,color="red", width = "1.25in") %>% 
+  column_spec(2,bold=T,color="blue",width = "0.75in") %>% 
+  column_spec(3:6,width = "1in")
+
+```
+<br>
+<br>
+
+```{r, table2, echo=FALSE, message=FALSE, warning=FALSE}
+popn_tbl_compact <- params$species_popn_data
+for (month in month.abb){
+  popn_tbl_compact[[month]] = paste(popn_tbl_compact[[month]], "\u00B1" ,popn_tbl_compact[[paste0(month, "SD")]])
+}
+popn_tbl_compact$Species <- gsub("_", " ",popn_tbl_compact$Species)
+popn_tbl_compact <- popn_tbl_compact %>% 
+  dplyr::select(c("Species", month.abb))
+
+
+kbl(popn_tbl_compact[,c(1:7)], booktabs=T, caption = "Species monthly (Jan-Jun) population estimates \u00B1 SD and assumptions/limitations as specified by the USFWS using the most recent data.", row.names = F) %>%
+  # footnote(general= "Population data assumptions/limitations",number=params$species_popn_assumptions, threeparttable=T) %>% 
+  kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+  row_spec(0,bold=T) %>% 
+  column_spec(1,bold=T,color="red", width = "1.25in") %>% 
+  column_spec(2:7,width = "0.75in")
+
+```
+
+<br>
+<br>
+
+```{r, table3, echo=FALSE, message=FALSE, warning=FALSE}
+#add footnotes
+notes <- paste0(1:length(params$species_popn_assumptions),") ", params$species_popn_assumptions)
+  
+kbl(popn_tbl_compact[, c(1, 8:13)], booktabs=T, caption = "Species monthly (Jul-Dec) population estimates \u00B1 SD and assumptions/limitations as specified by the USFWS using the most recent data.", row.names = F) %>%
+  footnote(general = notes, general_title="Population data assumptions/limitations:", threeparttable=T) %>% 
+  kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+  row_spec(0,bold=T) %>% 
+  column_spec(1,bold=T,color="red", width = "1.25in") %>% 
+  column_spec(2:7,width = "0.75in")
+
+```
+
+<br>
+<br>
+```{r, table4, echo=FALSE, warning=FALSE, message = FALSE}
+
+turb_params_table <- mat.or.vec(num_turb_mods, 6)
+
+for(s in 1:num_species){
+  for(t in 1:num_turb_mods){
+
+    model_out <- params$model_output[[s]][[t]]
+    # model_out <- params$model_output[[1]][[1]]
+    sampled_pars <- model_out$sampled_pars
+
+    index_a <- (num_turb_mods*s) - (num_turb_mods - t)
+
+    turb_params_table[index_a, 1] <- gsub("_", " ", model_out$species)
+    turb_params_table[index_a, 2] <- model_out$turbine_model
+    turb_params_table[index_a, 3] <- model_out$num_turbines
+    turb_params_table[index_a, 4] <- model_out$windfarm_width_km
+    turb_params_table[index_a, 5] <- model_out$lat
+    turb_params_table[index_a, 6] <- model_out$long
+    
+  }
+}
+
+colnames(turb_params_table) <- c("Species", "Turbine model", "Num. turbines", "Wind Farm width (km)", "Lat.", "Long.")
+turb_params_table <- as.data.frame(turb_params_table)
+turb_params_table <- turb_params_table[order(turb_params_table$Species, turb_params_table$`Turbine model`),]
+
+kbl(turb_params_table, booktabs=T, caption = "Wind farm input parameters.", row.names = F) %>%
+  kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+  row_spec(0,bold=T) %>% 
+  column_spec(1,bold=T,color="red", width = "1.25in") %>% 
+  column_spec(2,bold=T,color="blue",width = "0.75in") %>% 
+  column_spec(3:6,width = "1in")
+
+```
+<br>
+<br>
+
+```{r, table5, echo=FALSE, warning=FALSE, message = FALSE}
+
+#get fields for creating table. 
+params_list <- c("rtr_radius", "air_gap","hub_height", "bld_width", "rtn_speed", "bld_pitch")   
+
+turb_params_table2 <- mat.or.vec(num_turb_mods, (length(params_list) + 2))
+
+for(s in 1:num_species){
+  for(t in 1:num_turb_mods){
+
+    model_out <- params$model_output[[s]][[t]]
+    # model_out <- params$model_output[[1]][[1]]
+    sampled_pars <- model_out$sampled_pars
+
+    index_a <- (num_turb_mods*s) - (num_turb_mods - t)
+
+    turb_params_table2[index_a, 1] <- gsub("_", " ", model_out$species)
+    turb_params_table2[index_a, 2] <- model_out$turbine_model
+    
+    z = 1
+    for(field in params_list){
+      turb_params_table2[index_a, (z + 2)] <- paste0(round(sampled_pars[[field]]$mean, 3), " (", 
+                                                    round(sampled_pars[[field]]$pctl_2.5, 3), ", ", 
+                                                    round(sampled_pars[[field]]$pctl_97.5, 3), ")")
+      z = z + 1
+    }
+  }
+}
+
+colnames(turb_params_table2) <- c("Species", "Turbine model","Rotor radius", "Air gap (m)", "Hub height (m)", "Blade width (m)", "Rotor speed (rpm)", "Pitch (radians)")
+turb_params_table2 <- as.data.frame(turb_params_table2)
+turb_params_table2 <- turb_params_table2[order(turb_params_table2$Species, turb_params_table2$`Turbine model`),]
+
+kbl(turb_params_table2, booktabs=T, caption = "Wind farm input parameters (mean and 95 perc. range).", row.names = F) %>%
+  kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+  row_spec(0,bold=T) %>% 
+  column_spec(1,bold=T,color="red", width = "1.25in") %>% 
+  column_spec(2,bold=T,color="blue",width = "0.75in") %>% 
+  column_spec(3:8,width = "0.62in")
+
+```
+<br>
+<br>
+
+```{r, table6, echo=FALSE, warning=FALSE, message = FALSE}
+
+turb_params_table_pt1 <- mat.or.vec(num_turb_mods, (8))
+
+for(s in 1:num_species){
+  for(t in 1:num_turb_mods){
+
+    model_out <- params$model_output[[s]][[t]]
+    # model_out <- params$model_output[[1]][[1]]
+    prop_oper <- model_out$sampled_pars$prop_oper_mth
+
+    index_a <- (num_turb_mods*s) - (num_turb_mods - t)
+
+    turb_params_table_pt1[index_a, 1] <- gsub("_", " ", model_out$species)
+    turb_params_table_pt1[index_a, 2] <- model_out$turbine_model
+
+    z = 1
+    for(month in 1:6){
+      turb_params_table_pt1[index_a, (z + 2)] <- paste0(round(prop_oper[month, "mean"], 3), " (", 
+                                                    round(prop_oper[month, "pctl_2.5"], 3), ", ", 
+                                                    round(prop_oper[month, "pctl_97.5"], 3), ")")
+      z = z + 1
+    }
+  }
+}
+
+colnames(turb_params_table_pt1) <- c("Species", "Turbine model", "Jan Op.", "Feb Op.", "Mar Op.", "Apr Op.", "May Op.", "Jun Op.")
+turb_params_table_pt1 <- as.data.frame(turb_params_table_pt1)
+
+kbl(turb_params_table_pt1,booktabs=T, caption = "Monthly (Jan-Jun) wind farm operational percentage (mean and 95 perc. range) is given for each wind farm specification.", row.names = F) %>%
+  kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+  row_spec(0,bold=T) %>% 
+  column_spec(1,bold=T,color="red", width = "1.25in") %>% 
+  column_spec(2,bold=T,color="blue",width = "0.75in") %>% 
+  column_spec(3:8,width = "0.62in")
+
+```
+<br>
+<br>
+
+```{r, table7, echo=FALSE, warning=FALSE, message = FALSE}
+
+turb_params_table_pt2 <- mat.or.vec(num_turb_mods, (8))
+
+for(s in 1:num_species){
+  for(t in 1:num_turb_mods){
+
+    model_out <- params$model_output[[s]][[t]]
+    # model_out <- params$model_output[[1]][[1]]
+    prop_oper <- model_out$sampled_pars$prop_oper_mth
+
+    index_a <- (num_turb_mods*s) - (num_turb_mods - t)
+
+    turb_params_table_pt2[index_a, 1] <- gsub("_", " ", model_out$species)
+    turb_params_table_pt2[index_a, 2] <- model_out$turbine_model
+
+    z = 1
+    for(month in 7:12){
+      turb_params_table_pt2[index_a, (z + 2)] <- paste0(round(prop_oper[month, "mean"], 3), " (", 
+                                                    round(prop_oper[month, "pctl_2.5"], 3), ", ", 
+                                                    round(prop_oper[month, "pctl_97.5"], 3), ")")
+      z = z + 1
+    }
+  }
+}
+
+colnames(turb_params_table_pt2) <- c("Species", "Turbine model", "Jul Op.", "Aug Op.", "Sep Op.", "Oct Op.", "Nov Op.", "Dec Op.")
+turb_params_table_pt2 <- as.data.frame(turb_params_table_pt2)
+
+kbl(turb_params_table_pt2, booktabs=T, caption = "Monthly (Jul-Dec) wind farm operational percentage (mean and 95 perc. range) is given for each wind farm specification.", row.names = F) %>%
+  kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+  row_spec(0,bold=T) %>% 
+  column_spec(1,bold=T,color="red", width = "1.25in") %>% 
+  column_spec(2,bold=T,color="blue",width = "0.75in") %>% 
+  column_spec(3:8,width = "0.62in")
+
+```
+
+<br>
+<br>
+\newpage
+
+```{r, fig1, fig.height = 7.5, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = "A map of the mean monthly species occurrence probabities (i.e., the mean of all summed daily occurrence probabilities across all months) and wind farm location. Collision estimates use summed daily occurrence probability rather than  these values as shown; the values in this figure are presented for display purposes only to show relative differences in occurrence across the area of interest.", fig.pos="t"}
+
+
+wf_loc <- params$model_output[[1]][[1]][c("lat", "long")] 
+
+windfarm_loc <- st_as_sf(as.data.frame(wf_loc), coords=c("long", "lat"), crs=4326) %>% st_transform(3857)
+map_extent <- st_union(windfarm_loc) %>% st_buffer(720000) %>% st_bbox()
+map_extent_sm <- st_union(windfarm_loc) %>% st_buffer(280000) %>% st_bbox()
+
+quants <- function(val) {
+  #issue with zero inflated bins - need to generate non-zero quants
+  non_zero_mean <- val[val>0]
+  mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7)))
+  # mean_bins <- quantile(val, probs=seq(0,1,1/8))
+  return(cut(val, mean_bins, labels = F, include.lowest = T, right = F))
+}
+
+quants_labels <- function(val) {
+  non_zero_mean <- val[val>0]
+  mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7)))
+  # mean_bins <- quantile(val, probs=seq(0,1,1/8))
+  return(cut(val, mean_bins, ordered_result=T, include.lowest = T, right = F))
+}
+
+
+#load the occupancy model for mapping
+if(params$migration_calc_type == "occup_model") {
+  spp_move_occur <- st_as_sf(params$spp_move_data_summary) %>% st_transform(3857)
+  spp_move_occur$quant <- as.factor(quants(spp_move_occur$mean_daily_allmonths))
+  spp_move_occur$quant_labels <- quants_labels(spp_move_occur$mean_daily_allmonths)
+  
+  fill_labels <- as.vector(levels(spp_move_occur$quant_labels))
+  shut_up(
+  print(basemaps::basemap_ggplot(ext = map_extent, map_service = "esri", map_type = "natgeo_world_map") +
+  # print(basemaps::basemap_ggplot(ext = map_extent, map_service = "osm", map_type = "streets") +
+          ggnewscale::new_scale("fill") +
+          geom_sf(data = spp_move_occur, aes(fill=quant), alpha = 0.5) +
+          scale_fill_manual(values =c("1" ="#FFFFCC", "2"="#FFEDA0", "3"="#FED976", "4"="#FEB24C", "5"="#FD8D3C",
+                                      "6"="#FC4E2A", "7"="#E31A1C", "8"="#B10026"), labels=fill_labels) +
+          ggnewscale::new_scale("color") +
+          # geom_sf(data = states_sf, aes(col="black"), fill=NA, show.legend = F) +
+          geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
+          geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
+          geom_sf(data=windfarm_loc, aes(col="red"), fill=NA, size = 5, shape = 8) +
+          scale_color_identity(labels = c(black = "State boundaries", gray40 = "BOEM wind leases", gray80="BOEM planning areas",
+                                          red = "Wind farm location"), guide = "legend", ) +
+          coord_sf(xlim = c(map_extent_sm[1],map_extent_sm[3]), ylim=c(map_extent_sm[2],map_extent_sm[4])) +
+          ggtitle(paste(sub("_", " ", params$model_output[[1]][[1]]$species), "mean summed monthly occurrence probability\n  and wind farm location.")) +
+          theme_bw() +
+          guides(color = guide_legend(nrow = 4), 
+                 fill = guide_legend(nrow = 4)) +
+          theme(axis.title = element_blank(), 
+                legend.title = element_blank(),
+                legend.position="bottom")
+        )
+  
+)
+} else {
+  shut_up(
+  print(basemaps::basemap_ggplot(ext = map_extent, map_service = "esri", map_type = "natgeo_world_map") +
+  # print(basemaps::basemap_ggplot(ext = map_extent, map_service = "osm", map_type = "streets") +
+          # ggnewscale::new_scale("fill") +
+          # scale_fill_manual(values =c("1" ="#FFFFCC", "2"="#FFEDA0", "3"="#FED976", "4"="#FEB24C", "5"="#FD8D3C",
+          #                             "6"="#FC4E2A", "7"="#E31A1C", "8"="#B10026"), labels=fill_labels) +
+          # ggnewscale::new_scale("color") +
+          # geom_sf(data = states_sf, aes(col="black"), fill=NA, show.legend = F) +
+          geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
+          geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
+          geom_sf(data=windfarm_loc, aes(col="red"), fill=NA, size = 5, shape = 8) +
+          scale_color_identity(labels = c(black = "State boundaries", gray40 = "BOEM wind leases", gray80="BOEM planning areas",
+                                          red = "Wind farm location"), guide = "legend", ) +
+          coord_sf(xlim = c(map_extent_sm[1],map_extent_sm[3]), ylim=c(map_extent_sm[2],map_extent_sm[4])) +
+          ggtitle(paste("Project wind farm location.")) +
+          theme_bw() +
+          guides(color = guide_legend(nrow = 4), 
+                 fill = guide_legend(nrow = 4)) +
+          theme(axis.title = element_blank(), 
+                legend.title = element_blank(),
+                legend.position="bottom")
+        )
+  
+)
+}
+
+
+
+
+  #There needs to be spaces between plots in R Markdown if they are to be given their own caption
+  #https://stackoverflow.com/questions/52788015/looping-through-a-list-of-ggplots-and-giving-each-a-figure-caption-using-knitr
+  cat('\n\n\n\n')
+
+```
+
+<br>
+\newpage
+
+## Results from the SCRAM2 simulation
+
+``` {r, table_out_1, echo=FALSE, warning=FALSE, message = FALSE,  results = "asis"}
+#print this table only if the calcs using the occupancy occup_model
+if(params$migration_calc_type == "occup_model") {
+  model_summary_out <- data.frame()
+  
+  for(s in 1:num_species){
+    popn_col <- params$species_popn_data %>% 
+    dplyr::select(month.abb) %>% 
+    t()
+  
+    for(t in 1:num_turb_mods){
+      model_out <- params$model_output[[s]][[t]]
+      # model_out <- params$model_output[[1]][[1]]
+      
+      spp_daily_cell_count <- params$daily_cell_flux[[1]] %>% 
+        select(-c("i"))
+      
+      spp_daily_cell_count_melt <- reshape2::melt(spp_daily_cell_count, value.name = "daily_cell_count") %>% 
+        mutate(species = model_out$species, turbine_model = model_out$turbine_model) %>% 
+            dplyr::rename(month=variable) %>% 
+            as.data.frame()
+      
+      #calculate mean and 95% CI
+      
+      daily_cell_summary <- spp_daily_cell_count_melt %>%
+        dplyr::group_by(species, turbine_model, month) %>%
+        dplyr::summarise(mean = formatC(mean(daily_cell_count, na.rm = T), digits=3, format="G"),
+                         lower = formatC(quantile(daily_cell_count, c(0.025), na.rm=TRUE), digits=3, format="G", ),
+                         upper = formatC(quantile(daily_cell_count, c(0.975), na.rm=TRUE), digits=3, format="G")) %>%
+        # dplyr::mutate(turbine = sub("turbModel", "", turbine_model)) %>%
+        dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
+        dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
+        dplyr::mutate(month = as.character(month), population = popn_col[,1],`Est. daily num. of animals in the model cell` = paste0(mean, " (", lower, ", ", upper, ")")) %>%
+        dplyr::mutate_if(is.character, str_replace, pattern = "  \\(  ,   \\)", replacement = "")
+      
+      #calculate daily collisions from monthly collision rates
+      monthly_collisions <- model_out$collisions[[1]]
+      #get number of days in a month
+      month_day_vals <- monthDays(as.Date(paste0("01/", str_pad(1:12, width = 2, side = "left", pad = "0"), "/2023")))
+      #calc mean daily collision rate from monthly values
+      daily_collisions <- monthly_collisions / month_day_vals
+  
+      daily_collisions_melt <- reshape2::melt(daily_collisions, value.name = "coll_rate") %>% 
+        mutate(species = model_out$species, turbine_model = model_out$turbine_model) %>% 
+        dplyr::rename("iter"="Var1", "month"="Var2") %>% 
+        as.data.frame()
+  
+      #calculate mean and 95% CI for daily collisions
+      daily_collisions_summary <- daily_collisions_melt %>%
+        dplyr::group_by(species, turbine_model, month) %>%
+        dplyr::summarise(mean = formatC(mean(coll_rate, na.rm = T), digits=3, format="G"),
+                         lower = formatC(quantile(coll_rate, c(0.025), na.rm=TRUE), digits=3, format="G"),
+                         upper = formatC(quantile(coll_rate, c(0.975), na.rm=TRUE), digits=3, format="G")) %>%
+        dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
+        dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
+        dplyr::mutate(month = as.character(month), `Est. daily num. of collisions in the wind farm` = paste0(mean, " (", lower, ", ", upper, ")")) %>%
+        dplyr::mutate_if(is.character, str_replace, pattern = "  \\(  ,   \\)", replacement = "")
+     
+      daily_crm_summary <- as.data.frame(cbind(daily_cell_summary[, c("species","turbine_model","month", "population", "Est. daily num. of animals in the model cell")], daily_collisions_summary[, "Est. daily num. of collisions in the wind farm"]))
+      
+      if(nrow(model_summary_out) == 0){
+        model_summary_out <- daily_crm_summary
+        } else model_summary_out <- rbind(model_summary_out, daily_crm_summary)
+    }
+  }
+  
+  model_summary_out$species <- gsub("_", " ", model_summary_out$species)
+  colnames(model_summary_out) <- c("Species", "Turbine model", "Month", "Population estimate","Est. daily num. of animals in the model cell",
+                                   "Est. daily num. of collisions in the wind farm")
+  
+  kbl(model_summary_out, booktabs=T, align = "lcccc",
+      caption = "The populations estimate for each month and the estimated daily number of (95 perc. prediction intervals) animals in the model cell and collisions at the wind farm. Results are not shown for months that do not have movement data. This does not mean that collisions could not occur in those months, but we do not have movement data to estimate collisions during these periods.") %>%
+    kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>%
+    row_spec(0,bold=T, extra_css = "vertical-align:text-bottom !important;") %>%
+    column_spec(1,bold=T,color="red", width = "1.25in") %>%
+    column_spec(2,bold=T,color="blue",width = "0.75in") %>%
+    column_spec(3,bold=T,color="purple",width = "0.5in") %>%
+    column_spec(4,bold=T,width = "0.75in") %>%
+    column_spec(5:6,width = "1.375in", extra_css = "horizontal-align:center;")
+}
+
+
+```
+
+<br>
+\newpage
+
+```{r, table_out_2, echo=FALSE, warning=FALSE, message = FALSE,  results = "asis"}
+
+model_out_melt <- data.frame()
+
+for(s in 1:num_species){
+  for(t in 1:num_turb_mods){
+    model_out <- params$model_output[[s]][[t]]
+    
+    monthly_collisions <- model_out$collisions[[1]]
+  
+    monthly_collisions_melt <- reshape2::melt(monthly_collisions, value.name = "coll_rate") %>% 
+      mutate(species = model_out$species, turbine_model = model_out$turbine_model) %>% 
+      dplyr::rename("iter"="Var1", "month"="Var2") %>% 
+      as.data.frame()
+   
+    if(nrow(model_out_melt) == 0){
+      model_out_melt <- monthly_collisions_melt
+      } else model_out_melt <- rbind(model_out_melt, monthly_collisions_melt)
+  }
+}
+  
+#calculate mean and 95% CI  
+monthly_summary <- model_out_melt %>% 
+  dplyr::group_by(species, turbine_model, month) %>% 
+  dplyr::summarise(mean = formatC(mean(coll_rate, na.rm = T),digits=3, format="g"), 
+                   lower = formatC(quantile(coll_rate, c(0.025), na.rm=TRUE),digits=3, format="g"),
+                   upper = formatC(quantile(coll_rate, c(0.975), na.rm=TRUE), digits=3, format="g")) %>% 
+  dplyr::mutate(turbine_model = sub("turbModel", "", turbine_model)) %>% 
+  dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
+  dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
+  dplyr::mutate(month = as.character(month), `Est. num. of collisions` = paste0(mean, " (", lower, ", ", upper, ")")) %>% 
+  dplyr::mutate_if(is.character, str_replace, pattern = " \\(  ,   \\)", replacement = "")
+
+#calculate annual summary of model runs, mean of sum of posteriors and then quantiles of these sums for predict interval
+annual_sum <- model_out_melt %>% 
+  dplyr::group_by(species, turbine_model, iter) %>% 
+  dplyr::summarise(sum_monthly = sum(coll_rate, na.rm = T)) #%>% 
+
+annual_rate <- annual_sum %>% 
+  dplyr::group_by(species, turbine_model) %>% 
+  dplyr::summarise(mean = formatC(mean(sum_monthly, na.rm = T),digits=3, format="g"), 
+                   lower = formatC(quantile(sum_monthly, c(0.025), na.rm=TRUE),digits=3, format="g"),
+                   upper = formatC(quantile(sum_monthly, c(0.975), na.rm=TRUE), digits=3, format="g"))  %>% 
+  dplyr::mutate(turbine_model = sub("turbModel", "", turbine_model)) %>% 
+  mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
+  mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
+  mutate(`Est. num. of collisions` = paste0(mean, " (", lower, ", ", upper, ")")) %>% 
+  mutate_if(is.character, str_replace, pattern = " \\(  ,   \\)", replacement = "") %>% 
+  mutate(month="Annual")
+
+annual_summary <- as.data.frame(rbind(monthly_summary[, c("species", "turbine_model", "month", "Est. num. of collisions")], 
+                       annual_rate[, c("species", "turbine_model", "month", "Est. num. of collisions")]))
+annual_summary$species <- gsub("_", " ", annual_summary$species)
+colnames(annual_summary) <- c("Species", "Turbine model", "month", "Est. num. of collisions")
+
+kbl(annual_summary, booktabs=T, align = "lccc",
+    caption = "The estimated monthly number (95 perc. prediction intervals) of collisions. Results are not shown for months that do not have movement data and does not mean that collisions could not occur in those months.") %>%
+  kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+  row_spec(0,bold=T, extra_css = "vertical-align:text-bottom !important;") %>% 
+  column_spec(1,bold=T,color="red", width = "1.25in") %>% 
+  column_spec(2,bold=T,color="blue",width = "0.75in") %>% 
+  column_spec(3,bold=T,color="purple",width = "1in") %>% 
+  column_spec(4,width = "3.25in", extra_css = "horizontal-align:center;")
+  
+
+```
+
+<br>
+\newpage
+
+```{r, fig2, fig.height = 4, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = "A frequency histogram of the total number of collisions per year. The heights of the bars show the relative frequency of each value. Months for which movement data were provided or available are shown in bold; only bold months are shown in histogram of annual collisions.", fig.pos="t"}
+
+nbins = 20
+
+for(s in 1:num_species){
+  for(t in 1:num_turb_mods){
+    
+    model_out <- params$model_output[[s]][[t]]
+    monthly_collisions <- model_out$collisions[[1]]
+    
+    species <- model_out$species
+
+    if(!is.null(monthly_collisions)){
+
+      NA_index <- which(is.na(monthly_collisions[1,]))
+      outvector <- round(rowSums(monthly_collisions, na.rm = TRUE), digits = 3)
+      
+      xmin <- round(min(outvector, na.rm=TRUE))
+      xmax <- round(max(outvector, na.rm=TRUE))
+      # freq_outvector <- table(outvector)
+      shut_up({
+        hist_outvector <- graphics::hist(outvector, breaks = nbins, plot = F)
+        freq_outvector <- hist_outvector$counts
+        bar_outvector <- as.data.frame(cbind(mids=hist_outvector$mids, density=freq_outvector/sum(freq_outvector)))
+      })
+      # print(str(bar_outvector))
+      
+      if (sum(outvector, na.rm=T)==0){
+        #no collisions provide a modified figure
+        plot_xmin = 0
+        plot_xmax = 10
+        plot_ymin = 0
+        plot_ymax = 10
+        x_ann = 5
+        y_ann = 5
+        fig_text = "No collisions predicted"
+        
+      } else {
+        plot_xmin = -1
+        if (xmax + 2 < 10){
+          plot_xmax = 10
+        } else {plot_xmax = xmax + 2}
+        plot_ymin = 0
+        plot_ymax = max(freq_outvector)/sum(freq_outvector)*1.1  #calculate frequency of first most numerous element to set as max y
+        x_ann = 0
+        y_ann = 0
+        fig_text = ""
+      }
+      
+      #main plot title
+      
+      if(length(which(params$species_labels[,1] == species))>0){
+        main_label <- paste0("Model option ", model_out$option, " for species ", 
+                            params$species_labels[params$species_labels[,1] == species, 2], " (turbine model ",
+                            model_out$turbine_model, ")")
+      }else{
+        main_label <- paste0("Model option ", model_out$model_option, " for species ", species,  " (turbine model ", 
+                                                                          model_out$turbine_model, ")")
+      }
+      
+      bold <- rep(2, 12)
+      month_col <- rep("dark blue", 12)
+      month_col[NA_index] <- rgb(0, 0, 0, 0.8)
+      bold[NA_index] <- 1 # make bold those months with data
+      p1 <- ggplot2::ggplot(bar_outvector, aes(x=mids, y=density)) +
+        #center on integers use binwidth = 1 and center = 0; but modified to make bar end at number for thresholding
+        # stat_bin(bins=12, aes(y = stat(count / sum(count))), col="darkgreen", fill="darkgreen", binwidth = 0.5, center = 0.5) +
+        #change to geom_col to have more control over bars with addition of limits to 0 and above to threshold
+        ggplot2::geom_col(fill="darkgreen") +
+        annotate("rect", xmin=0, xmax=params$threshold, ymin=0, ymax=plot_ymax, fill=rgb(1, 1, 1, 0.65), col=rgb(0, 0, 0, 0)) +
+        ggtitle(main_label) +
+        scale_x_continuous(breaks=scales::pretty_breaks()) +
+        xlab("Total collisions per year over months highlighted below") +
+        ylab("Frequency") +
+        annotate("text", x=x_ann, y=y_ann, label = fig_text) +
+        geom_vline(xintercept = params$threshold, color = "red", linetype = "dashed") +
+        annotate("text", x=params$threshold, y=plot_ymax*0.5, col="red", label = "Input threshold", angle=90, vjust=-0.75) +
+        theme_classic()
+      
+      p2 <- cowplot::ggdraw(cowplot::add_sub(p1, label = month.abb, x=seq(0.1,0.9,0.8/11), color = month_col, size = 8, fontface = bold))
+      print(p2)
+      
+      #There needs to be spaces between plots in R Markdown if they are to be given their own caption
+      #https://stackoverflow.com/questions/52788015/looping-through-a-list-of-ggplots-and-giving-each-a-figure-caption-using-knitr
+      cat('\n\n')
+
+    }
+    # cat('\n\n')
+  }
+}
+
+```
+
+\newpage
+    
+
+```{r, fig3, fig.height = 4, echo=FALSE, warning=FALSE, message = FALSE, fig.cap="The predicted mean and 95 perc. prediction intervals of the number of collisions per month. Results are not shown for months that do not have movement data. Total annual collision rate and 95 perc. prediction interval are given at top. The threshold is shown divided by the number of months that movement data were available."}
+
+for(s in 1:num_species){
+  for(t in 1:num_turb_mods){
+    
+    model_out <- params$model_output[[s]][[t]]
+    monthly_collisions <- model_out$collisions[[1]]
+    
+    species <- model_out$species
+
+    NA_index <- which(is.na(monthly_collisions[1,]))
+  
+      #main label creation
+    if(length(which(params$species_labels[,1] == species))>0){
+      main_label <- paste0(
+        params$species_labels[params$species_labels[,1] == species, 2], 
+        " (turbine model ", model_out$turbine_model, ")")
+    }else{
+      main_label <- paste0(model_out$species, " (turbine model ", model_out$turbine_model, ")")
+    }
+    
+    
+    monthly_collisions <- model_out$collisions[[1]]
+  
+    monthly_collisions_melt <- reshape2::melt(monthly_collisions, value.name = "coll_rate") %>% 
+      mutate(species = model_out$species, turbine_model = model_out$turbine_model) %>% 
+      dplyr::rename("iter"="Var1", "month"="Var2") %>% 
+      as.data.frame()
+   
+    # if(nrow(model_out_melt) == 0){
+    #   model_out_melt <- monthly_collisions_melt
+    #   } else model_out_melt <- rbind(model_out_melt, monthly_collisions_melt)
+    
+    # model_out_melt <- reshape2::melt(model_out$collisions, value.name = "coll_rate")
+    # model_out_melt <- model_out_melt %>% 
+    #   dplyr::rename("month"="variable")
+    # model_out_melt$iter <- rep(seq(1:length(model_out$Jan)), 12)
+    
+    #calculate mean and 95% CI  
+    model_summary <- monthly_collisions_melt %>% 
+      dplyr::group_by(month) %>% 
+      dplyr::summarise(mean_coll_rate = mean(coll_rate, na.rm = T), 
+                lower_coll_rate = quantile(coll_rate, c(0.025), na.rm=TRUE),
+                upper_coll_rate = quantile(coll_rate, c(0.975), na.rm=TRUE))
+    
+     #calculate annual summary of model runs, mean of sum of posteriors and then quantiles of these sums for predict interval
+    annual_summary <- monthly_collisions_melt %>% 
+      dplyr::group_by(iter) %>% 
+      dplyr::summarise(sum_monthly = sum(coll_rate, na.rm = T))
+    
+    annual_rate <- annual_summary %>% 
+      dplyr::mutate(mean = formatC(mean(annual_summary$sum_monthly, na.rm=TRUE), digits=3, format="g"),
+                     lower = formatC(quantile(annual_summary$sum_monthly, c(0.025), na.rm=TRUE), digits=3, format="g"),
+                     upper = formatC(quantile(annual_summary$sum_monthly, c(0.975), na.rm=TRUE), digits=3, format="g"))
+    
+    annual_collision_rate_txt <- paste0("Total est. annual num. of collions (95 perc. prediction interval): ", annual_rate$mean, 
+                                     " (", annual_rate$lower,", ", annual_rate$upper, ")")
+      
+    #determine max upper to give a bit more space to the y axis
+    max_upper <-  max(model_summary$upper_coll_rate, na.rm = T)
+    y_limit <- max_upper * 1.50 
+    
+    #calculate monthly threshold based on number of modeled months, since most months don't contribute data
+  monthly_threshold <- params$threshold/(12-length(NA_index))
+  
+  print(ggplot(model_summary) +
+          geom_hline(yintercept = monthly_threshold, color = "red", linetype = "dashed") +
+          geom_point(aes(x=month, y=mean_coll_rate)) +
+          geom_linerange(aes(x = month, ymin = lower_coll_rate, ymax = upper_coll_rate)) + 
+          ggtitle(main_label, subtitle = annual_collision_rate_txt) +
+          ylab("Est. num. of collisions in the month listed") +
+          expand_limits(y=y_limit) +
+          theme_classic() + 
+          theme(axis.title.x = element_blank(),
+                plot.title = element_text(hjust = 0.5),
+                plot.subtitle = element_text(hjust = 0.5)
+          ))
+  cat('\n\n')
+  
+  }
+}
+
+```
+

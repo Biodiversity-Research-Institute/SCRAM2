@@ -1,0 +1,5 @@
+Species,migr_front_type,migr_front_km,Jan,JanSD,Feb,FebSD,Mar,MarSD,Apr,AprSD,May,MaySD,Jun,JunSD,Jul,JulSD,Aug,AugSD,Sep,SepSD,Oct,OctSD,Nov,NovSD,Dec,DecSD
+Piping_Plover,average,232,0,0,0,0,406,0,2426,0,1215,0,671,0,4004,0,2004,0,0,0,0,0,0,0,0,0
+Red_Knot,wide,3118,0,0,0,0,0,0,0,0,59269,0,2371,0,7009,0,25893,0,25893,0,15651,0,8631,0,863,0
+Red_Knot,narrow,684,0,0,0,0,0,0,0,0,8761,0,2118,0,6171,0,22450,0,22450,0,13413,0,7483,0,748,0
+Roseate_Tern,average,466,0,0,0,0,0,0,3622,0,3622,0,3622,0,0,0,5433,0,5433,0,5433,0,0,0,0,0
