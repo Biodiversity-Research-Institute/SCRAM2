@@ -39,7 +39,9 @@
 # 01 Mar 23 - 1.0.2 - add coastal flag as dialog box and report warning.
 # 09 Mar 23 - 1.0.3 - removed coastal flag and modified the number of animals in a model cell by  multiplying by the proportion of transient animals
 # to reduce the effect of coastal staging animals on risk.
-# 17 Aug 23 - 2.0 - modify SCRAM to use StochLab package and it's functions for calculating crm modified to accept annex 6 migrant flux calculations based on movement data
+# 17 Aug 23 - 2.0 - modify SCRAM to use StochLab package and it's functions for calculating crm modified to accept annex 6 migrant flux calculations based on movement data; Also now using RPM data vs. wind speed data in the calcs requiring changing the example input files
+# 16 Nov 23 - updated species popn data to harmonize between Band 2012 Annex 6 and SCRAM
+# 09 Jan 2023 Added update models with additional tags under vers 2.0 to include additional tags not available for version 1. 
 
 
 # load scripts
@@ -263,7 +265,7 @@ ui <- dashboardPage(
         condition = 'input.species_input',
         h4("4) Select CRM parameter options:", style = "padding-left: 10px; margin-bottom: -10px"),
         radioButtons("crm_option_radio", "Band (2012) equivalent CRM options:",
-                     c("Option 1: faster approximation" = "1", "Option 3: slower but more precise" = "3")),
+                     c("Option 1: faster approximation" = "1", "Option 3: slower but more precise" = "3"), selected = "3"),
         div(style = "margin-top: -20px;"),  #reduce space between elements
         sliderInput("iter_slider", label = "Model iterations (rec. min. 1,000)", min = 100, 
                     max = 10000, value = 1000, step=100, width = '95%'), 
@@ -660,34 +662,34 @@ server <- function(input, output, session) {
     
     #filter to species
     species_params <- bird_data %>%
-      filter(Species == input$species_input)
+      dplyr::filter(Species == input$species_input)
     
     #select flight speed data and rename
     species_params_vals$flt_spd_data <- species_params %>% 
-      select(Flight_Speed, Flight_SpeedSD) %>% 
-      rename(mean = Flight_Speed, sd = Flight_SpeedSD)
+      dplyr::select(Flight_Speed, Flight_SpeedSD) %>% 
+      dplyr::rename(mean = Flight_Speed, sd = Flight_SpeedSD)
     
     #select body length data and rename
     species_params_vals$body_lt_data <- species_params %>% 
-      select(Body_Length, Body_LengthSD) %>% 
-      rename(mean = Body_Length, sd = Body_LengthSD)
+      dplyr::select(Body_Length, Body_LengthSD) %>% 
+      dplyr::rename(mean = Body_Length, sd = Body_LengthSD)
     
     #select Wingspan data and rename
     species_params_vals$wing_span_data <- species_params %>% 
-      select(Wingspan, WingspanSD) %>% 
-      rename(mean = Wingspan, sd = WingspanSD)
+      dplyr::select(Wingspan, WingspanSD) %>% 
+      dplyr::rename(mean = Wingspan, sd = WingspanSD)
     
     #select Avoidance data and rename
     species_params_vals$avoid_ext_data <- species_params %>% 
-      select(Avoidance, AvoidanceSD) %>% 
-      rename(mean = Avoidance, sd = AvoidanceSD)
+      dplyr::select(Avoidance, AvoidanceSD) %>% 
+      dplyr::rename(mean = Avoidance, sd = AvoidanceSD)
     
     species_params_vals$flap_glide <- species_params[which(species_params$Species == isolate(input$species_input)), "Flight"]
     
     #select Avoidance data and rename
     species_params_vals$prop_upwind_data <- species_params %>% 
-      select(Prop_Upwind, Prop_UpwindSD) %>% 
-      rename(mean = Prop_Upwind, sd = Prop_UpwindSD)
+      dplyr::select(Prop_Upwind, Prop_UpwindSD) %>% 
+      dplyr::rename(mean = Prop_Upwind, sd = Prop_UpwindSD)
     
     #add nocturnal activity dataframe since not an input at this point
     species_params_vals$noct_act_data <- data.frame(mean = 1, sd = 0)
@@ -714,7 +716,7 @@ server <- function(input, output, session) {
       species_params_vals$migrate_resident <- "migrant"
       if (input$migration_calc_type == "occup_model") {
         #model distribution type inputs
-        species_params_vals$model_input_dist_type <- "trunc" #"last" - seems to produce worse state estimates, use first daily position (trunc)
+        species_params_vals$model_input_dist_type <- "2023" #trunc" #"last" - seems to produce worse state estimates, use first daily position
       } else { #annex 6 calcs
         species_params_vals$model_input_dist_type <- "mean"
       }
@@ -772,9 +774,9 @@ server <- function(input, output, session) {
   # naming requirements.
   species_fhd <- eventReactive(input$species_input,{
     read.csv(paste0("data/", input$species_input,"_ht_dflt_v2.csv")) %>% 
-      select(-Species) %>% 
-      rename(height = Height_m) %>% 
-      mutate(height = height - 1)
+      dplyr::select(-Species) %>% 
+      dplyr::rename(height = Height_m) %>% 
+      dplyr::mutate(height = height - 1)
   })
   
   # Calculate the expected proportion of bird flights at collision risk height (i.e. at rotor height, between
@@ -807,23 +809,6 @@ server <- function(input, output, session) {
     
   #Summary table of flight height data for plotting and tables
   #  Created these for default/included data to speed up process, and otherwise summarize loaded flight height data
-  # flt_ht_summary_react <- eventReactive(c(input$file_spp_param, input$species_input), {
-  #   if(!is.null(input$file_spp_param)){
-  #     flt_ht_boot_table <- spp_flt_ht_react()[[1]]
-  #     n_cols <- ncol(flt_ht_boot_table)
-  #     #summarize across all boot samples
-  #     flt_ht_summary <- flt_ht_boot_table %>%
-  #       dplyr::group_by(Height_m) %>%
-  #       dplyr::rowwise() %>%
-  #       dplyr::summarise(mean_prop = mean(c_across(3:n_cols-1)), min_prop = min(c_across(3:n_cols-1)), max_prop = max(c_across(3:n_cols-1)))
-  #   } else {
-  #     #return  pre-rendered flt height summaries depending on species
-  #     # load(file=paste0("data/", input$species_input, "_ht_dflt_summary.RData"))
-  #     load(file=paste0("data/", input$species_input, "_ht_dflt_v2_summary.RData"))
-  #   }
-  #   return(flt_ht_summary)
-  # })
-  
   flt_ht_summary_react <- reactive({
     load(file=paste0("data/", input$species_input, "_ht_dflt_v2_summary.RData"))
     return(flt_ht_summary)
@@ -874,8 +859,10 @@ server <- function(input, output, session) {
   })
   
   # annex6_migr_data <- read.csv("data/band_2012_annex6_migr_data_091123.csv")
-  annex6_migr_data <- read.csv("data/Band_2012_REKN_PIPL_ROST_100223.csv")
+  #Received updates species population data from P.Loring with input from species leads dated 11/16/23 harmonizing data between annex 6 and SCRAM
+  annex6_migr_data <- read.csv("data/Band_2012_REKN_PIPL_ROST_111623.csv")
   
+  #load the migration corridors supplied by P.Loring for defining these spatially
   spp_corridor <- reactive({
     req(input$migration_calc_type == "band_2012_annex_6" & !is.null(input$species_input))
      if (input$species_input == "Red_Knot"){
@@ -883,7 +870,7 @@ server <- function(input, output, session) {
      } else if (input$species_input == "Piping_Plover") {
        sf::read_sf("data/species_corridors/PIPL_Band2012.shp")
      } else if (input$species_input == "Roseate_Tern") {
-       sf::read_sf(sf::read_sf("data/species_corridors/ROST_Band2012_04142023.shp")) %>% 
+       sf::read_sf("data/species_corridors/ROST_Band2012_04142023.shp") %>% 
          sf::st_transform(4326)
      }
   })
@@ -898,24 +885,29 @@ server <- function(input, output, session) {
   # Species population data -------------------------------------------
   
   #load population data
-  popn_data <- read.csv("data/CountData_USFWS_20220919.csv", header = T)
+  # popn_data <- read.csv("data/CountData_USFWS_20220919.csv", header = T)
+  #Received updates species population data from P.Loring with input from species leads dated 11/16/23 harmonizing data between annex 6 and SCRAM
+  popn_data <- read.csv("data/Band_2012_REKN_PIPL_ROST_111623.csv", header = T)
   
   popn_data_vals <- reactiveValues()
   
   observe({
     req(input$migration_calc_type == "occup_model" & !is.null(input$species_input))
+    
+    popn_data_vals$spp_popn_data <- popn_data %>%
+      dplyr::filter(Species == input$species_input & Location == "All")
         
     #filter to species data and reformat to month, mean, and sd data columns
     spp_popn_SD <- popn_data %>%
-      dplyr::filter(Species == input$species_input) %>%
+      dplyr::filter(Species == input$species_input & Location == "All") %>%
       dplyr::select(ends_with("SD")) %>%
       t %>%
       as.data.frame()
 
     popn_data_vals$spp_popn_mean <- popn_data %>%
-      dplyr::filter(Species == input$species_input) %>%
+      dplyr::filter(Species == input$species_input & Location == "All") %>%
       dplyr::select(!ends_with("SD")) %>%
-      dplyr::select(!"Species") %>%
+      dplyr::select(!c("Species", "Location")) %>%
       t %>%
       data.frame() %>%
       dplyr::rename("mean" = 1) %>%
@@ -937,14 +929,14 @@ server <- function(input, output, session) {
     #   )
     
     spp_popn_SD_display <- popn_data %>%
-      dplyr::filter(Species == input$species_input) %>%
+      dplyr::filter(Species == input$species_input & Location == "All") %>%
       dplyr::select(ends_with("SD"))%>% 
       dplyr::mutate(Var = "SD") %>% 
       dplyr::select(c("Var", paste0(month.abb, "SD"))) %>%
       dplyr::rename_with(~ gsub("SD", "", .x, fixed = T))
     
     popn_data_vals$spp_popn_mean_display <- popn_data %>%
-      dplyr::filter(Species == input$species_input) %>%
+      dplyr::filter(Species == input$species_input & Location == "All") %>%
       dplyr::select(!ends_with("SD")) %>%
       dplyr::select(!c("Species")) %>% 
       dplyr::mutate(Var = "mean") %>% 
@@ -963,13 +955,12 @@ server <- function(input, output, session) {
     })
   
   
-  
   observe({
     
     #annex 6 migrant data 
     req(input$migration_calc_type == "band_2012_annex_6" & !is.null(input$species_input) & !is.null(annex6_vals$filter_lcn))
 
-    #filter the data and sum over the rows to get total accross states or regions
+    #filter the data and sum over the rows to get total across states or regions
     annex6_vals$spp_popn_data <- annex6_migr_data %>% 
       dplyr::filter(Species == input$species_input & Location %in% annex6_vals$filter_lcn) %>%
       dplyr::select(-c(Location)) %>% 
@@ -1027,66 +1018,19 @@ server <- function(input, output, session) {
   spp_popn_notes <- reactive({
     req(input$species_input)
     Species <- input$species_input
-    if (input$migration_calc_type == "occup_model"){
-      if (Species=="Piping_Plover"){
-        return(c("Entire Atlantic coast population could be present in area during months listed.",
-                 "Occurrence through October to include birds stopping over in mid-Atlantic (e.g. North Carolina). Number of birds still present in Atlantic likely lower.",     
-                 "Estimate of HY fledges, uses the 20-year (2002 - 2021) average productivity (unweighted)."))
-      }
-      else if (Species=="Red_Knot"){
-        return(c("All pass through in spring - #s consistent w/Lyons et al super-population estimate for 2020 in DE Bay: 40,444 (95 perc. credible interval: 33,627–49,966).",
-                 "Winter population estimates represent the total # of adults and sub-adults (in general); they do not include hatch-year (HY) birds in the fall.",
-                 "Southern and northern wintering birds could be present during July - Sept.",
-                 "Only northern wintering birds could be present during Oct - Nov.",
-                 "Only southeast US and Caribbean birds could be present during Dec.",
-                 "Birds from western Gulf population are excluded from totals in Atlantic region due to lack of information on extent to which they use the Atlantic region.",
-                 "Numbers do not include HY birds in fall.",
-                 "Dec number coming from Lyons et al 2017. Just includes SE US Birds, not Caribbean.",
-                 "Issues with double counting addressed because birds may be present in different areas of Atlantic region for weeks to months."))
-      }
-      else if (Species=="Roseate_Tern"){
-        return(c("Entire NW Atlantic pop could be present in area during months listed.",
-                 "Average of most recent (2018 and 2019) productivity data from three largest colonies (representing >90 perc. of population) representative of entire population.",
-                 "Fledging and post-breeding dispersal period occurs from July through Sept.",
-                 "Numbers of non-breeding adults are not included.",
-                 "Does not include non-breeding 1 and 2 year old birds that return but do not breed.",
-                 "From Gochfeld and Burger (2020): Northeastern birds first arrive at Nantucket and Martha's Vineyard, MA, in large flocks, then disperse north as well as west. They arrive 26 Apr-20 May at Bird I., MA (Nisbet 1980, Nisbet 1981b, Nisbet 1989b), slightly later at Falkner I., CT, and Great Gull I., NY.",
-                 "From Gochfeld and Burger (2020): Apparently all birds migrate directly from the staging area around Cape Cod across the w. North Atlantic to the West Indies (Nisbet 1984, C. Mostello). Very small numbers occur at sea off N. Carolina from late Aug to late Sep, with a peak in early Sep; the latest date was 28 Oct (D. Lee)."))
-      } else {return("")} 
-    } else { #annex 6 text
-      
-      if (Species=="Piping_Plover"){
-        return(c("Population data are from 2021 (USFWS 2021a) and exclude an unknown (but likely small) number of nonbreeding birds.",
-                 "The Southern recovery unit population is excluded.",
-                 "The SB total includes YOY, calculated as the unweighted mean 20-year productivity rates (2002 - 2021) times the 2021 breeding pair estimate for each state within the Eastern Canada, New England, and NY-NJ recovery units.",
-                 "The eastern edge of the migration corridor runs southwest parallel to the general orientation of the coast to account for major migration staging areas in North Carolina. The eastern edge of the corridor south of Cape Hatteras is also constrained westward to account for much larger numbers of piping plovers wintering in the western Bahamas."))
-      }
-      else if (Species=="Red_Knot"){
-        return(c(
-          "Population data are from Table 2, above.",
-          "Birds from the Western recovery unit population are sometimes documented on the Atlantic coast. However, available tracking and resighting data show that the prevailing migration corridor for these birds is overland across the mid-continent (Perkins 2023, USFWS 2021b, USFWS 2014). On this basis, birds from the Western recovery unit are excluded from this analysis.",
-          "In many years, a percentage of northbound birds do not depart the mid-Atlantic until early June. But for the purposes of this analysis, we attribute them all to May.",
-          "Some juveniles and nonbreeding adults remain south of the migration front, others cross the migration front once in spring and spend the breeding season just south of the breeding grounds, while still others may remain resident in the mid-Atlantic for prolonged periods and may cross the migration front multiple times. We have no estimate of the total number of nonbreeding adults in a typical year, or their distribution across the species nonbreeding range. However, we do estimate the total number of juveniles. Modeling by Schwarzer (2011) found that the Florida population was stable at around 8.75 percent juveniles among wintering birds, and available data suggest the three populations considered in this analysis are currently stable (USFWS 2021b). Thus, we assume 8.75 percent of the total wintering birds are juveniles (i.e., of the 59,269 total birds, we assume 5,186 are juveniles.) We have little information on the distribution of juveniles across the species’ range during any month. In light of data gaps, we assume all breeding adults, nonbreeding adults, and juveniles cross the migration front twice per year.",
-          "The SB total includes YOY, calculated as 1 chick per pair. Number of pairs is calculated as [the total wintering population (59,269) minus juveniles (5,186)] divided by 2. We have no way to estimate nonbreeding adults, so we include them with breeding adults, then attempt to compensate by using a reproductive rate of 1 chick per pair, below the range estimated by Wilson and Morrison (2018) as needed for a stable population."))
-      }
-      else if (Species=="Roseate_Tern"){
-        return(
-          c(
-            "Migration numbers were generated based on 2021 breeding population numbers and productivity rates from the US and Canada.",
-            "Spring migration totals were calculated as the number of breeding pairs in each region multiplied by 2 adults per breeding pair.",
-            "Fall migration totals included all adults from spring migration plus the approximate number of YOY.",
-            "YOY totals were calculated by multiplying the number of breeding pairs in the US and Canada by the average productivity of these pairs (approximately 1 YOY per pair).",
-            "Migration months were determined based on peak migration during the spring and fall migration seasons, as reported by Gochfeld and Burger (2020).",
-            "Number of spring and fall migrants were then assumed to be divided evenly across migration months."
-          )
-        )
-      } else {return("")} 
+    if (Species == "Piping_Plover") {
+      return(c("Population data are from 2021 (USFWS 2021a) and exclude an unknown (but likely small) number of nonbreeding birds.", "Numbers are based on birds from [state at latitude of wind farm] northward, including Atlantic Canada. The southbound (SB) total includes young of the year (YOY), calculated as the unweighted mean 20-year productivity rates (2002 - 2021) times the 2021 breeding pair estimate for each state and Atlantic Canada.", "The eastern edge of the migration corridor runs southwest parallel to the general orientation of the coast to account for major migration staging areas in North Carolina (Weithman et al. 2018). The eastern edge of the corridor south of Cape Hatteras, North Carolina is also constrained westward to account for much larger numbers of piping plovers wintering in the western Bahamas. Future tagging may reveal some migration pathways to the east of the corridor and/or concentrations within this corridor. The corridor delineated here is based on the limited available data."))
     }
-
-    
+    else if (Species == "Red_Knot") {
+      return(c("See the report addendum for notes on the population data."))
+    }
+    else if (Species == "Roseate_Tern") {
+      return(c("Migration numbers were generated based on 2021 breeding population numbers and productivity rates from the US and Canada.", "Spring migration totals were calculated as the number of breeding pairs in each region multiplied by 2 adults per breeding pair.", "Fall migration totals included all adults from spring migration plus the approximate number of YOY.", "YOY totals were calculated by multiplying the number of breeding pairs in the US and Canada by the average productivity of these pairs (approximately 1 YOY per pair).", "Migration months were determined based on peak migration during the spring and fall migration seasons, as reported by Gochfeld and Burger (2020).", "Number of spring and fall migrants were then assumed to be divided evenly across migration months."))
+    } else {
+      return("")
+    } 
   })
 
-  
   #create count notes for rendering.
   output$popn_notes <- renderText(
     c("<h5>Population data assumptions/limitations:</h5>",
@@ -1172,7 +1116,7 @@ server <- function(input, output, session) {
     #create the annex6 migration corridor line and split at migration corridor
     #create an extended line for processsing corridor and getting closest state info
     EW_line <- create_EW_line(sf::st_coordinates(windfarm_loc$center), length_km = 5000)
-    
+
     annex6_vals$mig_corridor_line <- EW_line %>% 
       lwgeom::st_split(spp_corridor()) %>% st_intersection(spp_corridor()) #%>% st_cast()
     
@@ -1231,8 +1175,8 @@ server <- function(input, output, session) {
                          "Standard deviation of air gap (m)",
                          "Chord width of blade (m)",
                          "Standard deviation of blade width (m)",
-                         "Mean wind speed (m/s) between cut-in and cut-out speeds or wind speed rating of the turbine model if wind speed is unavailable",
-                         "Standard deviation of wind speed or wind speed rating (m/s)",
+                         "Mean rotor speed (rpm)",
+                         "Standard deviation of rotor speed (rpm)",
                          "Pitch angle of blades (degrees relative to rotor plane)",
                          "Standard deviation of pitch angle of blades",
                          "Wind farm width (km)",
@@ -1280,49 +1224,51 @@ server <- function(input, output, session) {
 
     #select airgap data and rename
     wind_farm_vals$airgap_data <- wind_farm_df() %>%
-      select(HubHeightAdd_m, HubHeightAddSD_m) %>%
-      rename(mean = HubHeightAdd_m, sd = HubHeightAddSD_m)
+      dplyr::select(HubHeightAdd_m, HubHeightAddSD_m) %>%
+      dplyr::rename(mean = HubHeightAdd_m, sd = HubHeightAddSD_m)
 
     #select rotor radius data and rename
     wind_farm_vals$rtr_radius_data <- wind_farm_df() %>%
-      select(RotorRadius_m, RotorRadiusSD_m) %>%
-      rename(mean = RotorRadius_m, sd = RotorRadiusSD_m)
+      dplyr::select(RotorRadius_m, RotorRadiusSD_m) %>%
+      dplyr::rename(mean = RotorRadius_m, sd = RotorRadiusSD_m)
 
     # select blade width data and rename
     wind_farm_vals$bld_width_data <- wind_farm_df() %>%
-      select(BladeWidth_m, BladeWidthSD_m) %>%
-      rename(mean = BladeWidth_m, sd = BladeWidthSD_m)
+      dplyr::select(BladeWidth_m, BladeWidthSD_m) %>%
+      dplyr::rename(mean = BladeWidth_m, sd = BladeWidthSD_m)
 
     # select blade pitch data and rename
     wind_farm_vals$bld_pitch_data <- wind_farm_df() %>%
-      select(Pitch, PitchSD) %>%
-      rename(mean = Pitch, sd = PitchSD)
+      dplyr::select(Pitch, PitchSD) %>%
+      dplyr::rename(mean = Pitch, sd = PitchSD)
 
-    # select rotation speed data and rename
-    wind_farm_vals$wind_speed_data <- wind_farm_df() %>%
-      select(WindSpeed_mps, WindSpeedSD_mps) %>%
-      rename(mean = WindSpeed_mps, sd = WindSpeedSD_mps)
+    # # select rotation speed data and rename
+    # wind_farm_vals$wind_speed_data <- wind_farm_df() %>%
+    #   dplyr::select(WindSpeed_mps, WindSpeedSD_mps) %>%
+    #   dplyr::rename(mean = WindSpeed_mps, sd = WindSpeedSD_mps)
 
     # select rotation speed data and rename
     # a single row data frame with
     # columns mean and sd, the mean and standard deviation of the operational rotation
     # speed, in revolutions per minute. Assumed to follow a tnorm-lw0 distribution.
-
+    wind_farm_vals$rtn_speed_data <- wind_farm_df() %>%
+      dplyr::select(RotorSpeed_rpm, RotorSpeedSD_rpm) %>%
+      dplyr::rename(mean = RotorSpeed_rpm, sd = RotorSpeedSD_rpm)
+    
     # get rotor speed according to diameter and mean and sd wind speeds
     # May want to check these wind speed/rotational speed data to ask for more accurate data from developers
     # more in line with what stoch_crm requires - should be discussed further
     # 5.5 is the TSR; 60 is for converting radians/s to rpm
-    # browser()
-    wind_farm_vals$rtn_speed_data <- data.frame()
-    for (t in 1:wind_farm_vals$num_turb_mods){
-      RotorSpeed_rpm_mean <-
-        (5.5 *  wind_farm_vals$wind_speed_data$mean[t] * 60) / (pi * 2 *  wind_farm_vals$rtr_radius_data$mean[t])
-      RotorSpeed_rpm_sd <-
-        (5.5 *  wind_farm_vals$wind_speed_data$sd[t] * 60) / (pi * 2 *  wind_farm_vals$rtr_radius_data$sd[t])
-      RotorSpeed_rpm_sd[is.nan(RotorSpeed_rpm_sd)] = 0
-      RotorSpeed_rpm_sd[is.infinite(RotorSpeed_rpm_sd)] = 0
-      wind_farm_vals$rtn_speed_data <- rbind(wind_farm_vals$rtn_speed_data, data.frame(mean = RotorSpeed_rpm_mean, sd = RotorSpeed_rpm_sd))
-    }
+    # wind_farm_vals$rtn_speed_data <- data.frame()
+    # for (t in 1:wind_farm_vals$num_turb_mods){
+    #   RotorSpeed_rpm_mean <-
+    #     (5.5 *  wind_farm_vals$wind_speed_data$mean[t] * 60) / (pi * 2 *  wind_farm_vals$rtr_radius_data$mean[t])
+    #   RotorSpeed_rpm_sd <-
+    #     (5.5 *  wind_farm_vals$wind_speed_data$sd[t] * 60) / (pi * 2 *  wind_farm_vals$rtr_radius_data$sd[t])
+    #   RotorSpeed_rpm_sd[is.nan(RotorSpeed_rpm_sd)] = 0
+    #   RotorSpeed_rpm_sd[is.infinite(RotorSpeed_rpm_sd)] = 0
+    #   wind_farm_vals$rtn_speed_data <- rbind(wind_farm_vals$rtn_speed_data, data.frame(mean = RotorSpeed_rpm_mean, sd = RotorSpeed_rpm_sd))
+    # }
 
     # select operational data
     # A data frame with the monthly estimates of operational wind availability. It
@@ -1330,7 +1276,7 @@ server <- function(input, output, session) {
     # - month, (unique) month names,
     # - pctg, the percentage of time wind conditions allow for turbine operation per month.
     pctg = wind_farm_df() %>%
-      select(ends_with("Op")) %>%
+      dplyr::select(ends_with("Op")) %>%
       t
 
     wind_farm_vals$trb_wind_avbl_data <- list()
@@ -1345,11 +1291,11 @@ server <- function(input, output, session) {
     wind_farm_vals$trb_downtime_data <- list()
 
     down_mean = wind_farm_df() %>%
-      select(ends_with("OpMean")) %>%
+      dplyr::select(ends_with("OpMean")) %>%
       t
 
     down_sd = wind_farm_df() %>%
-      select(ends_with("OpSD")) %>%
+      dplyr::select(ends_with("OpSD")) %>%
       t
     for(i in 1:ncol(down_mean)){
       wind_farm_vals$trb_downtime_data <- append(wind_farm_vals$trb_downtime_data,
@@ -1381,9 +1327,8 @@ server <- function(input, output, session) {
     }
     
     bird_flux_vals$trans_prop <- windfarm_loc$cell_sf[[paste0(spp_code, "_prop_trans")]]
-    
     movement_model_post <- read.csv(unz(paste0("data/movements/", input$species_input, "_movements_", species_params_vals$model_input_dist_type, ".zip"), 
-                                                                            paste0("MovementBaked_", input$species_input, "_", species_params_vals$model_input_dist_type, windfarm_loc$cell_sf$id, ".csv")), header=T)
+                                                                            paste0("MovementBaked_", tolower(spp_code), "_", species_params_vals$model_input_dist_type, "_", windfarm_loc$cell_sf$id, ".csv")), header=T)
     
     bird_dens <- data.frame(i=1:length(movement_model_post[,1]))
     num_birds_cell_perday <- data.frame(i=1:length(movement_model_post[,1]))
@@ -1411,7 +1356,7 @@ server <- function(input, output, session) {
 
     #remove index field for input to model
     bird_dens <- bird_dens %>% 
-      select(-i)
+      dplyr::select(-i)
     return(bird_dens)
     
   }) # end bird_dens_from_model
@@ -1441,7 +1386,7 @@ server <- function(input, output, session) {
     
     #remove index field for input to model
     bird_dens <- bird_dens %>% 
-      select(-i)
+      dplyr::select(-i)
     return(bird_dens)
   })
   
@@ -1454,7 +1399,7 @@ server <- function(input, output, session) {
     
     species <- input$species_input
     grid_layer <-  paste0(species, "_monthly_prob_BOEM_half_deg_", species_params_vals$model_input_dist_type)
-    load(file.path(data_dir, paste0(species, "_monthly_prob_BOEM_half_deg_", species_params_vals$model_input_dist_type,".RData")))
+    load(file.path(data_dir, "movements", paste0(species, "_monthly_prob_BOEM_half_deg_", species_params_vals$model_input_dist_type,".RData")))
     assign(grid_layer, spp_monthly_prob_BOEM_half_deg)
   })
   
@@ -1468,9 +1413,9 @@ server <- function(input, output, session) {
   
   #modify map to add occupancy data if the model is used for calculation
   observe({
-      
+    
     #render the map with the lat/longs given in the study area map panel
-    req(input$migration_calc_type == "occup_model" & nrow(spp_move_data())>0)
+    req(input$migration_calc_type == "occup_model" & !is.null(spp_move_data()))
 
     pal <- meanpal()
     
@@ -1860,11 +1805,11 @@ server <- function(input, output, session) {
             if (sum(outvector, na.rm = T) == 0) {
               #no collisions provide a modified figure
               plot_xmin = 0
-              plot_xmax = 10
+              plot_xmax = 2
               plot_ymin = 0
-              plot_ymax = 10
-              x_ann = 5
-              y_ann = 5
+              plot_ymax = 5
+              x_ann = 0
+              y_ann = 2.5
               fig_text = "No collisions predicted"
               
             } else {
@@ -2080,7 +2025,6 @@ server <- function(input, output, session) {
 
       species_params <- bird_data %>%
         filter(Species == input$species_input)
-
       
       # set up parameters to pass to Rmd document
       if(input$migration_calc_type == "occup_model") {
@@ -2106,7 +2050,7 @@ server <- function(input, output, session) {
           spp_move_data_summary = spp_move_data(),
           prob_exceed = prob_exceed_threshold(),
           species_labels = SpeciesLabels,
-          species_popn_data = popn_data[which(popn_data$Species == input$species_input), ],
+          species_popn_data =  popn_data_vals$spp_popn_data,
           species_popn_assumptions = spp_popn_notes()
         )
       } else { #annex 6
@@ -2263,7 +2207,7 @@ server <- function(input, output, session) {
             spp_move_data_summary = spp_move_data(),
             prob_exceed = prob_exceed_threshold(),
             species_labels = SpeciesLabels,
-            species_popn_data = popn_data[which(popn_data$Species == input$species_input), ],
+            species_popn_data = popn_data_vals$spp_popn_data,
             species_popn_assumptions = spp_popn_notes()
           )
         } else { #annex 6
