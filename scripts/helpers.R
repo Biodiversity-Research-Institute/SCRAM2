@@ -17,10 +17,10 @@ library(pracma)
 library(rcmdcheck)
 library(sp)
 library(sf)
-library(rgdal)
+# library(rgdal)
 library(geosphere)
 library(readr)
-library(rgeos)
+# library(rgeos)
 library(htmltools)
 library(rmarkdown)
 library(fs)
@@ -31,15 +31,11 @@ library(gmailr)
 library(ipc)
 library(leaflet)
 library(leaflet.esri)
+library(USA.state.boundaries)
 library(ggplot2)
 library(cowplot)
-library(basemaps)
-library(knitr)
-library(kableExtra)
-# library(future)
-# library(promises)
-# plan(multisession)
 
+set.seed(11)
 
 #load the species movement model mean monthly probability data
 #generate all species data
@@ -48,18 +44,9 @@ data_dir <- "data"
 #add disclaimer about potentially higher collision risk estimate due to inclusion of land 
 coastal_disclaimer <- "Cells that overlap land have higher collision estimates,\nas passage rate estimates include birds that are on land as well as overwater."
 
-# for (species in c("Red_Knot", "Piping_Plover", "Roseate_Tern")){ #, "Common_Tern")){
-#   # "Red_Knot_monthly_prob_BOEM_half_deg_trunc.RData"
-#   data_layer <-  paste0(species, "_monthly_prob_BOEM_half_deg_trunc")
-#   load(file.path(data_dir, paste0(species, "_monthly_prob_BOEM_half_deg_trunc.RData")))
-#   assign(data_layer, spp_monthly_prob_BOEM_half_deg)
-#   data_layer2 <-  paste0(species, "_monthly_prob_BOEM_half_deg_last")
-#   load(file.path(data_dir, paste0(species, "_monthly_prob_BOEM_half_deg_last.RData")))
-#   assign(data_layer2, spp_monthly_prob_BOEM_half_deg)
-# }
-# rm(spp_monthly_prob_BOEM_half_deg)
-BOEM_lease_outlines <- sf::read_sf("data/BOEMWindLeaseOutlines_6_1_2022.shp") %>% st_transform(3857)
-BOEM_planning_area_outlines <- sf::read_sf("data/BOEMWindPlanningAreas_06_01_2022.shp") %>% st_transform(3857)
+#ATG - 010423 - updated lease area and planning area outlines from BOEM - version 8 from 111623
+BOEM_lease_outlines <- sf::read_sf("data/Wind_Lease_Outlines_11_16_2023.shp") %>% st_transform(3857)
+BOEM_planning_area_outlines <- sf::read_sf("data/BOEM_Wind_Planning_Area_Outlines_11_3_2023.shp") %>% st_transform(3857)
 states_sf <- sf::read_sf("data/statesp020.shp") %>% st_transform(3857)
 
 # https://stackoverflow.com/questions/6177629/how-to-silence-the-output-from-this-r-package
@@ -83,3 +70,36 @@ shut_up = function(expr) {
   # y
 }
 
+#function to create an east-west line of known lenght and center point a specified distance
+#center_pt_lat_long is the center of the line lat long values vector
+create_EW_line <- function(center_pt_lat_long, length_km){
+  west_pt = geosphere::destPointRhumb(center_pt_lat_long, b = -90, d = length_km * 1000)
+  east_pt = geosphere::destPointRhumb(center_pt_lat_long, b = 90, d = length_km * 1000)
+  coords = cbind(west_pt, east_pt)
+  EW_line = st_sfc(
+    lapply(1:nrow(coords),
+           function(i){
+             sf::st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
+           }))
+  
+  EW_line =  sf::st_sf(EW_line, crs = sf::st_crs(4326))
+  return(EW_line)
+}
+
+SC_states_north = c("South Carolina","North Carolina","Virginia","Maryland","Delaware","New Jersey","New York",
+                    "Connecticut","Rhode Island","Massachusetts","New Hampshire","Maine","Eastern Canada")
+NC_states_north = c("North Carolina","Virginia","Maryland","Delaware","New Jersey","New York","Connecticut", 
+                    "Rhode Island", "Massachusetts", "New Hampshire", "Maine","Eastern Canada")
+VA_states_north = c("Virginia","Maryland","Delaware","New Jersey","New York","Connecticut", "Rhode Island", 
+                    "Massachusetts","New Hampshire","Maine","Eastern Canada")
+MD_states_north = c("Maryland","Delaware","New Jersey","New York","Connecticut","Rhode Island","Massachusetts",
+                    "New Hampshire","Maine","Eastern Canada")
+DE_states_north = c("Delaware","New Jersey","New York","Connecticut","Rhode Island","Massachusetts","New Hampshire",
+                    "Maine","Eastern Canada")
+NJ_states_north = c("New Jersey","New York","Connecticut","Rhode Island","Massachusetts","New Hampshire","Maine","Eastern Canada")
+NY_states_north = c("New York","Connecticut","Rhode Island","Massachusetts","New Hampshire","Maine","Eastern Canada")
+CT_states_north = c("Connecticut","Rhode Island","Massachusetts","New Hampshire","Maine","Eastern Canada")
+RI_states_north = c("Rhode Island","Massachusetts","New Hampshire","Maine","Eastern Canada")
+MA_states_north = c("Massachusetts","New Hampshire","Maine","Eastern Canada")
+NH_states_north = c("New Hampshire","Maine","Eastern Canada")
+ME_states_north = c("Maine","Eastern Canada")

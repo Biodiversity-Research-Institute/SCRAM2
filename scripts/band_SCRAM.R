@@ -387,7 +387,6 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   
   
   # STEP 3 - Calculate bird flux per month
-  
   if (migrant_resident == "migrant") {
     #migrant flux calculations (Band 2012 Annex 6) - for SCRAM use  model grid cell width and popn_est = popn in the grid cell
     flux_fct <-
@@ -411,7 +410,6 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   }
   
   # STEP 4 - calculate FHD across rotor height
-  
   ## for model options 2 or 3, i.e. using generic FHD
   if (any(model_options %in% c('2', '3'))) {
     gen_fhd_at_rotor <-

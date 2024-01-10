@@ -211,7 +211,7 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
                         air_gap_pars,
                         rtr_radius_pars,
                         bld_width_pars,
-                        bld_chord_prf = chord_prof_5MW,
+                        bld_chord_prf = stochLAB::chord_prof_5MW,
                         rtn_pitch_opt = c("probDist", "windSpeedReltn"),
                         bld_pitch_pars = NULL,
                         rtn_speed_pars = NULL,
@@ -235,7 +235,6 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
                         seed = NULL
                         
 ) {
-  
   require(stochLAB)
   
   # Preamble -------------------------------------------------------
@@ -498,12 +497,11 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   #if(verbose) cli::cli_progress_bar("Calculating collisions", total = n_iter, clear = FALSE, )
   
   for (i in 1:n_iter){
-    
     # Collisions under chosen model Options for current sampled parameters
     collisions_i <-
       band_SCRAM(
         model_options = model_options,
-        migrant_resident,
+        migrant_resident = migrant_resident,
         flight_speed = param_draws$flt_speed[i],
         body_lt = param_draws$body_lt[i],
         wing_span = param_draws$wing_span[i],
@@ -533,7 +531,6 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
         yinc = yinc,
         rotor_grids = rotor_grids,
         wf_daynight_hrs_month = wf_daynight_hrs_month)
-    
     
     # store results
     for(option in names(collisions_i)){

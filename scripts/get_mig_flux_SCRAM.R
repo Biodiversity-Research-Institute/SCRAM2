@@ -27,7 +27,7 @@
 #' )
 #' @export
 get_mig_flux_SCRAM <- function(n_turbines, rotor_radius, density_est){
-  
+
   tot_frontal_area <- n_turbines * pi * rotor_radius^2
   
   # Get an estimate of birds/km and then convert that to birds/m

@@ -39,7 +39,7 @@
 # 01 Mar 23 - 1.0.2 - add coastal flag as dialog box and report warning.
 # 09 Mar 23 - 1.0.3 - removed coastal flag and modified the number of animals in a model cell by  multiplying by the proportion of transient animals
 # to reduce the effect of coastal staging animals on risk.
-# 17 Aug 23 - 1.1 - modify SCRAM to use StochLab package and it's functions for calculating crm modified to accept annex 6 migrant flux calculations based on movement data
+# 17 Aug 23 - 2.0 - modify SCRAM to use StochLab package and it's functions for calculating crm modified to accept annex 6 migrant flux calculations based on movement data
 
 
 # load scripts
@@ -186,10 +186,31 @@ ui <- dashboardPage(
                      choices = c("Movement model" = "occup_model", "Band 2012 annex 6" = "band_2012_annex_6"),
                      selected = "occup_model"),
       # ),
+      
+      #################Enter wind farm parameters
+      conditionalPanel( 
+        #show only when species data have been inputted
+        # condition = 'input.species_input',
+        condition = 'input.project_name != "" & input.modeler != ""',
+        
+        h4("2) Load wind farm parameters:", 
+           style = "padding-left: 10px; margin-bottom: 0px"),
+        fileInput(
+          "file_wf_param",
+          "Upload wind farm data",
+          accept = c('text/csv',
+                     'text/comma-separated-values,text/plain',
+                     '.csv'),
+          width = '95%'),
+        
+        div(style = "margin-top: 0px;"),  #reduce space between elements
+      
       conditionalPanel( 
         #show only when project names entered
-        condition = ('input.project_name != "" & input.modeler != ""'), #"input.migration_calc_type != ''"),
-        h4("2) Select the species or load species data:", style = "padding-left: 10px; margin-bottom: 0px"),
+        # condition = ('input.project_name != "" & input.modeler != ""'),
+        condition = ('output.fileUploaded'),
+        
+        h4("3) Select the species or load species data:", style = "padding-left: 10px; margin-bottom: 0px"),
         
         ################### Input: Select the model type and species to model
 
@@ -209,21 +230,7 @@ ui <- dashboardPage(
         #   #                style = "margin-left: 20px; margin-top: 0px; background-color: blue; color: white; font-weight: bold;"),
         #   fileInput("file_spp_param", "Upload species data and flight height distributions", accept = ".csv", multiple = TRUE, width = '90%', options(shiny.maxRequestSize = 25 * 1024^2))
         #   ),
-        
-        #################Enter wind farm parameters
-        conditionalPanel( 
-          #show only when species data have been inputted
-          condition = 'input.species_input',
-          h4("3) Load wind farm parameters:", style = "padding-left: 10px; margin-bottom: 0px"),
-          fileInput(
-            "file_wf_param",
-            "Upload wind farm data",
-            accept = c('text/csv',
-                       'text/comma-separated-values,text/plain',
-                       '.csv'),
-            width = '95%'),
-          
-          div(style = "margin-top: 0px;"),  #reduce space between elements
+
           
           
           #################Upload migration passage data
@@ -234,7 +241,12 @@ ui <- dashboardPage(
             uiOutput("migr_front_type"),
             div(style = "margin-top: -20px;"),  #reduce space between elements
             
-            textInput("migr_front_width", "Migratory front (km)", value = NULL)
+            # Add output for Annex 6 calcs showing the frontal width and closest state
+            htmlOutput("migr_front_width", 
+                       style = "padding: 10px; margin-top: -10px"),
+            htmlOutput("nearest_state", 
+                       style = "padding: 10px; margin-top: -10px")
+            
             # fileInput("file_migr_passages", "Upload migration passage data", accept = c('text/csv',
             #                                                                             'text/comma-separated-values,text/plain',
             #                                                                             '.csv'), width = '95%'),
@@ -247,7 +259,8 @@ ui <- dashboardPage(
       #################Enter CRM options
       conditionalPanel( 
         #show only when wind farm data have been inputted
-        condition = "output.fileUploaded",
+        # condition = "output.fileUploaded",
+        condition = 'input.species_input',
         h4("4) Select CRM parameter options:", style = "padding-left: 10px; margin-bottom: -10px"),
         radioButtons("crm_option_radio", "Band (2012) equivalent CRM options:",
                      c("Option 1: faster approximation" = "1", "Option 3: slower but more precise" = "3")),
@@ -337,6 +350,54 @@ ui <- dashboardPage(
         )
       ), #tabpanel
       
+      
+      tabPanel(
+        "Wind Farm Inputs",
+        value = "wind_farm_panel",
+        fluidRow(
+          box(
+            status = "primary",
+            solidHeader = F,
+            collapsible = T,
+            width = 12,
+            style = "margin-top: -20px; padding-bottom: 20px",
+            htmlOutput("check_windfarm_instructions", style = "margin-top: -14px")
+          )
+        ),
+        fluidRow(
+          column(7,
+                 fluidRow(
+                   box(
+                     title = "Wind Farm Inputs",
+                     status = "success",
+                     solidHeader = TRUE,
+                     width = 12,
+                     tabsetPanel(
+                       tabPanel("Wind Farm Specs", dataTableOutput("wind_farm_data1"),
+                                style = "height:500px; overflow-y: scroll;overflow-x: scroll;"),
+                       tabPanel("Turbine Ops Data", dataTableOutput("ops_data"),
+                                style = "height:500px; overflow-y: scroll;overflow-x: scroll;"))
+                   )
+                 )
+          ),
+          column(5,
+                 fluidRow(
+                   box(
+                     title = "Wind Farm Map",
+                     status = "primary",
+                     solidHeader = TRUE,
+                     width = 12,
+                     leafletOutput("studymap", height = "535px", width = "100%")
+                   )
+                 ),
+                 fluidRow(
+                   htmlOutput("mean_prob_txt", 
+                              style = "margin-left: 20px; margin-right: 20px; margin-top: -10px; color: steelblue; font-size: 10px")) 
+                 # p("\u00B9Mean occup. prob.= mean monthly occupancy probability"
+          )
+        )
+      ), #tabpanel wind farm data
+      
       tabPanel(
         "Species Input",
         value = "species_panel",
@@ -394,53 +455,7 @@ ui <- dashboardPage(
         )
         
       ), #tabpanel Species Data
-      
-      tabPanel(
-        "Wind Farm Inputs",
-        value = "wind_farm_panel",
-        fluidRow(
-          box(
-            status = "primary",
-            solidHeader = F,
-            collapsible = T,
-            width = 12,
-            style = "margin-top: -20px; padding-bottom: 20px",
-            htmlOutput("check_windfarm_instructions", style = "margin-top: -14px")
-          )
-        ),
-        fluidRow(
-          column(7,
-                 fluidRow(
-                   box(
-                     title = "Wind Farm Inputs",
-                     status = "success",
-                     solidHeader = TRUE,
-                     width = 12,
-                     tabsetPanel(
-                       tabPanel("Wind Farm Specs", dataTableOutput("wind_farm_data1"),
-                                style = "height:500px; overflow-y: scroll;overflow-x: scroll;"),
-                       tabPanel("Turbine Ops Data", dataTableOutput("ops_data"),
-                                style = "height:500px; overflow-y: scroll;overflow-x: scroll;"))
-                   )
-                 )
-          ),
-          column(5,
-                 fluidRow(
-                   box(
-                     title = "Study Location and Species Densities",
-                     status = "primary",
-                     solidHeader = TRUE,
-                     width = 12,
-                     leafletOutput("studymap", height = "535px", width = "100%")
-                   )
-                 ), 
-                 fluidRow(
-                   p("\u00B9Mean occup. prob.= mean monthly occupancy probability", 
-                     style = "margin-left: 20px; margin-right: 20px; margin-top: -10px; color: steelblue; font-size: 12px"))
-          )
-        )
-      ), #tabpanel wind farm data
-      
+
       #CRM results tab
       tabPanel("CRM Results", value = "crm_results",
                fluidRow(
@@ -525,28 +540,36 @@ server <- function(input, output, session) {
   # load labels to display versions of species names without underscores
   SpeciesLabels <- read.csv("data/SpeciesLabels.csv")
   
-  annex6_migr_data <- read.csv("data/band_2012_annex6_migr_data_091123.csv")
+  # Set study map footnote text
+  observeEvent(c(input$species_input), {
+    req(input$migration_calc_type == "occup_model" & length(input$species_input) > 0)
     
-  #render the checkbox for migration type based on input data and show migration corridor widtth from file
-  observeEvent(c(input$migration_calc_type, input$species_input), {
-    req(input$migration_calc_type == "band_2012_annex_6" & length(input$species_input) > 0)
-    annex6_migr_spp <- annex6_migr_data %>% 
-      dplyr::filter(Species == input$species_input)
-    output$migr_front_type <- renderUI({
-      selectInput("migr_front_opt", "Migratory front width option", choices = annex6_migr_spp$migr_front_type)
-    })
+    output$mean_prob_txt <- renderText("\u00B9Mean occup. prob.= mean monthly occupancy probability")
     
   })
+
+  # # Calculate the corridor width when the species is selected
+  # observeEvent(c(input$species_input), {
+  #   req(input$migration_calc_type == "band_2012_annex_6" & length(input$species_input) > 0)
+  #   
+  #   #determine the location to use for 
+  #   
+  #   annex6_migr_spp <- annex6_migr_data %>% 
+  #     dplyr::filter(Species == input$species_input)
+  #   # output$migr_front_type <- renderUI({
+  #   #   selectInput("migr_front_opt", "Migratory front width option", choices = annex6_migr_spp$migr_front_type)
+  #   # })
+  #   
+  # })
   
-  
-  #show the migration corridor width when a migration front type is chosen
-   observe({
-     req(!is.null(input$migr_front_opt))
-     annex6_migr_width <- annex6_migr_data %>% 
-       dplyr::filter(Species == input$species_input & migr_front_type == input$migr_front_opt)
-     updateTextInput(session, "migr_front_width", value=annex6_migr_width$migr_front_km)
-     
-   })
+  # #show the migration corridor width when a migration front type is chosen
+  #  observe({
+  #    req(!is.null(input$migr_front_opt))
+  #    annex6_migr_width <- annex6_migr_data %>% 
+  #      dplyr::filter(Species == input$species_input & migr_front_type == input$migr_front_opt)
+  #    updateTextInput(session, "migr_front_width", value=annex6_migr_width$migr_front_km)
+  #    
+  #  })
   
   # Render and remove buttons -----------------------------------------------
   
@@ -621,15 +644,15 @@ server <- function(input, output, session) {
   
   selected_species <- reactive(input$species_input)
   
-  #navigate to species tab once selected
-  observeEvent(input$species_input, 
-               updateTabItems(session, inputId = "tabsetpan", selected = "species_panel")
-  )
+  # #navigate to species tab once selected
+  # observeEvent(input$species_input,
+  #              updateTabItems(session, inputId = "tabsetpan", selected = "species_panel")
+  # )
   
   #load bird data
   bird_data <- read.csv("data/BirdData_020923.csv", header = T)
 
-  species_params_vals <- reactiveValues()
+  species_params_vals <- reactiveValues(migrate_resident = NULL, )
   
   #reprocess data for input to stochCRM function
   observe({
@@ -669,32 +692,35 @@ server <- function(input, output, session) {
     #add nocturnal activity dataframe since not an input at this point
     species_params_vals$noct_act_data <- data.frame(mean = 1, sd = 0)
     
-    #create a parameter for migrant vs. resident for crm calc switch
-    if (input$species_input %in% c("Piping_Plover","Red_Knot", "Roseate_Tern")){
-      species_params_vals$migrate_resident_react = "migrant"
-    } else {  
-      species_params_vals$migrate_resident_react = "resident"
-    }
-    
   })
-    
-  # species_input_react <- eventReactive(c(input$species_input,input$file_spp_param$datapath), {
-  #   if(length(which(input$species_input=="Other"))==0){
-  #     input$species_input
-  #   }else{
-  #     suppressWarnings(read.table(input$file_spp_param[[which(
-  #       sapply(1:length(input$file_spp_param$datapath), function(x) length(suppressWarnings(read.table(input$file_spp_param[[x,"datapath"]], header=TRUE, sep = ","))[1,]))
-  #       == 10)[1],"datapath"]], header=TRUE, sep = ","))[,1]
-  #   }
-  # })  
   
-
-  #model type inputs
-  model_input_react <- eventReactive(species_params_vals$migrate_resident_react, {
-    if (species_params_vals$migrate_resident_react=="migrant"){
-      return("trunc") #"last" - seems to produce worse state estimates, use first daily position (trunc)
-    } else {  #resident
-      return("mean")
+  # species_params_vals$migrate_resident = NULL
+  
+  # observeEvent(input$migration_calc_type, {
+  #   req(!is.null(input$species_input))
+  #   species_params_vals$migrate_resident_reac
+  #   #create a parameter for migrant vs. resident for crm calc switch
+  #   if (input$species_input %in% c("Piping_Plover","Red_Knot", "Roseate_Tern") & input$migration_calc_type == "occup_model"){
+  #     species_params_vals$migrate_resident = "resident"
+  #   } else {  
+  #     species_params_vals$migrate_resident = "migrant"
+  #   }
+  # })
+  
+  observe({
+    req(!is.null(input$species_input))
+    #create a parameter for migrant vs. resident for crm calc switch
+    if (input$species_input %in% c("Piping_Plover","Red_Knot", "Roseate_Tern")) {
+      species_params_vals$migrate_resident <- "migrant"
+      if (input$migration_calc_type == "occup_model") {
+        #model distribution type inputs
+        species_params_vals$model_input_dist_type <- "trunc" #"last" - seems to produce worse state estimates, use first daily position (trunc)
+      } else { #annex 6 calcs
+        species_params_vals$model_input_dist_type <- "mean"
+      }
+    } else {  
+      species_params_vals$migrate_resident <- "resident"
+      
     }
   })
   
@@ -798,8 +824,8 @@ server <- function(input, output, session) {
   #   return(flt_ht_summary)
   # })
   
-  flt_ht_summary_react <- eventReactive(input$species_input, {
-    load(file=paste0("data/", isolate(input$species_input), "_ht_dflt_v2_summary.RData"))
+  flt_ht_summary_react <- reactive({
+    load(file=paste0("data/", input$species_input, "_ht_dflt_v2_summary.RData"))
     return(flt_ht_summary)
   })
   
@@ -828,6 +854,45 @@ server <- function(input, output, session) {
       theme_bw()
     
   })
+  
+
+  # Band 2012 Annex species data inputs -------------------------------------
+  
+  #set data for annex 6 calcs
+  # observeEvent(c(input$migration_calc_type, input$species_input), {
+  observe( {
+      
+    req(input$migration_calc_type == "band_2012_annex_6" & length(input$species_input) > 0)
+    
+    # Set study map footnote text
+    output$mean_prob_txt <- renderText("")
+    
+    annex6_migr_spp <- annex6_migr_data %>% 
+      dplyr::filter(Species == input$species_input)
+    
+    
+  })
+  
+  # annex6_migr_data <- read.csv("data/band_2012_annex6_migr_data_091123.csv")
+  annex6_migr_data <- read.csv("data/Band_2012_REKN_PIPL_ROST_100223.csv")
+  
+  spp_corridor <- reactive({
+    req(input$migration_calc_type == "band_2012_annex_6" & !is.null(input$species_input))
+     if (input$species_input == "Red_Knot"){
+       sf::read_sf("data/species_corridors/REKN_BandGeneralized.shp")
+     } else if (input$species_input == "Piping_Plover") {
+       sf::read_sf("data/species_corridors/PIPL_Band2012.shp")
+     } else if (input$species_input == "Roseate_Tern") {
+       sf::read_sf(sf::read_sf("data/species_corridors/ROST_Band2012_04142023.shp")) %>% 
+         sf::st_transform(4326)
+     }
+  })
+  
+  annex6_vals <- reactiveValues(nearest_state_due_W = NULL, 
+                                coastal_locations = NULL, 
+                                mig_corridor_line = NULL, 
+                                migr_front_km = 0, 
+                                spp_popn_data = NULL)
   
   
   # Species population data -------------------------------------------
@@ -897,40 +962,50 @@ server <- function(input, output, session) {
     )
     })
   
+  
+  
   observe({
     
-    req(input$migration_calc_type == "band_2012_annex_6" & !is.null(input$species_input) &
-          !is.na(as.numeric(input$migr_front_width)))
-    
     #annex 6 migrant data 
+    req(input$migration_calc_type == "band_2012_annex_6" & !is.null(input$species_input) & !is.null(annex6_vals$filter_lcn))
+
+    #filter the data and sum over the rows to get total accross states or regions
+    annex6_vals$spp_popn_data <- annex6_migr_data %>% 
+      dplyr::filter(Species == input$species_input & Location %in% annex6_vals$filter_lcn) %>%
+      dplyr::select(-c(Location)) %>% 
+      dplyr::group_by(Species) %>% 
+      dplyr::summarise(across(where(is.numeric), ~ sum(.x, na.rm = TRUE)))
+
     #filter to species data and reformat to month, mean, and sd data columns
-    spp_popn_SD <- annex6_migr_data %>%
-      dplyr::filter(Species == input$species_input & migr_front_km == as.numeric(input$migr_front_width)) %>%
+    spp_popn_SD <- annex6_vals$spp_popn_data %>%
+      # dplyr::filter(Species == input$species_input & migr_front_km == as.numeric(input$migr_front_width)) %>%
+      # dplyr::filter(Species == input$species_input & Location %in% annex6_vals$coastal_locations) %>%
       dplyr::select(ends_with("SD")) %>%
       t %>%
       as.data.frame()
-
-    popn_data_vals$spp_popn_mean <- annex6_migr_data %>%
-      dplyr::filter(Species == input$species_input & migr_front_km == as.numeric(input$migr_front_width)) %>%
+    
+    popn_data_vals$spp_popn_mean <- annex6_vals$spp_popn_data %>%
+      # dplyr::filter(Species == input$species_input) %>%
       dplyr::select(!ends_with("SD")) %>%
-      dplyr::select(!c("Species", "migr_front_type", "migr_front_km")) %>%
+      as.data.frame() %>% 
+      dplyr::select(!c(Species)) %>%
       t %>%
       data.frame() %>%
       dplyr::rename("mean" = 1) %>%
       dplyr::mutate(month = month.abb, sd = spp_popn_SD[, 1]) %>%
       dplyr::select(month, mean, sd)
     
-    spp_popn_SD_display <- annex6_migr_data %>%
-      dplyr::filter(Species == input$species_input & migr_front_km == as.numeric(input$migr_front_width)) %>%
+    spp_popn_SD_display <- annex6_vals$spp_popn_data %>%
+      # dplyr::filter(Species == input$species_input) %>%
       dplyr::select(ends_with("SD"))%>% 
       dplyr::mutate(Var = "SD") %>% 
       dplyr::select(c("Var", paste0(month.abb, "SD"))) %>%
       dplyr::rename_with(~ gsub("SD", "", .x, fixed = T))
 
-    popn_data_vals$spp_popn_mean_display <- annex6_migr_data %>%
-      dplyr::filter(Species == input$species_input & migr_front_km == as.numeric(input$migr_front_width)) %>%
+    popn_data_vals$spp_popn_mean_display <- annex6_vals$spp_popn_data %>%
+      # dplyr::filter(Species == input$species_input) %>%
       dplyr::select(!ends_with("SD")) %>%
-      dplyr::select(!c("Species", "migr_front_type", "migr_front_km")) %>% 
+      dplyr::select(!c("Species")) %>% 
       dplyr::mutate(Var = "mean") %>% 
       dplyr::select(c("Var", month.abb)) %>% 
       rbind(spp_popn_SD_display)
@@ -984,7 +1059,7 @@ server <- function(input, output, session) {
         return(c("Population data are from 2021 (USFWS 2021a) and exclude an unknown (but likely small) number of nonbreeding birds.",
                  "The Southern recovery unit population is excluded.",
                  "The SB total includes YOY, calculated as the unweighted mean 20-year productivity rates (2002 - 2021) times the 2021 breeding pair estimate for each state within the Eastern Canada, New England, and NY-NJ recovery units.",
-                 "The eastern edge of the migration corridor runs southwest parallel to the general orientation of the coast to account for major migration staging areas in North Carolina. The eastern edge of the corridor south of Cape Hatteras is also constrained westward to account for much larger numbers of piping plovers wintering in the western Bahamas (however, this has no effect on the width of the corridor at the latitude of the OW1 Lease Area)."))
+                 "The eastern edge of the migration corridor runs southwest parallel to the general orientation of the coast to account for major migration staging areas in North Carolina. The eastern edge of the corridor south of Cape Hatteras is also constrained westward to account for much larger numbers of piping plovers wintering in the western Bahamas."))
       }
       else if (Species=="Red_Knot"){
         return(c(
@@ -992,10 +1067,7 @@ server <- function(input, output, session) {
           "Birds from the Western recovery unit population are sometimes documented on the Atlantic coast. However, available tracking and resighting data show that the prevailing migration corridor for these birds is overland across the mid-continent (Perkins 2023, USFWS 2021b, USFWS 2014). On this basis, birds from the Western recovery unit are excluded from this analysis.",
           "In many years, a percentage of northbound birds do not depart the mid-Atlantic until early June. But for the purposes of this analysis, we attribute them all to May.",
           "Some juveniles and nonbreeding adults remain south of the migration front, others cross the migration front once in spring and spend the breeding season just south of the breeding grounds, while still others may remain resident in the mid-Atlantic for prolonged periods and may cross the migration front multiple times. We have no estimate of the total number of nonbreeding adults in a typical year, or their distribution across the species nonbreeding range. However, we do estimate the total number of juveniles. Modeling by Schwarzer (2011) found that the Florida population was stable at around 8.75 percent juveniles among wintering birds, and available data suggest the three populations considered in this analysis are currently stable (USFWS 2021b). Thus, we assume 8.75 percent of the total wintering birds are juveniles (i.e., of the 59,269 total birds, we assume 5,186 are juveniles.) We have little information on the distribution of juveniles across the species’ range during any month. In light of data gaps, we assume all breeding adults, nonbreeding adults, and juveniles cross the migration front twice per year.",
-          "The SB total includes YOY, calculated as 1 chick per pair. Number of pairs is calculated as [the total wintering population (59,269) minus juveniles (5,186)] divided by 2. We have no way to estimate nonbreeding adults, so we include them with breeding adults, then attempt to compensate by using a reproductive rate of 1 chick per pair, below the range estimated by Wilson and Morrison (2018) as needed for a stable population.", 
-          "Narrow corridor NB plus YOY does not add up to SB because different population segments were excluded in spring versus fall based on geolocator data.",
-          "The narrow NB total is based on methodology25 developed for the proposed critical habitat rule. This methodology for estimating the number of northbound migrants from the Atlantic coast of New Jersey through Maine—although based on best available information—is highly uncertain. We acknowledge that this estimate errs on the high side. Conversely, this estimate does not account for birds using mid-Atlantic stopovers (e.g., Long Island, Atlantic coast of New Jersey, Delaware Bay, Virginia) that may make regional flights among these areas during their stay—flights that may cross the OCS.",
-          "We subtracted the following from the wide SB total (86,310) to calculate the narrow SB total (74,835): 100 percent of 9,450 southbound birds flying far offshore from Mingan to Brazil (Lyons et al. 2017); and 45 percent of the 4,500 southbound birds that stopping in Massachusetts and head directly to Brazil (Lyons et al. 2019;). The percent of birds leaving Monomoy to the southeast directly for Brazil is based on stable isotope analysis by Lyons et al. (2019), which cannot distinguish Brazil-wintering birds from Southeast/Caribbean-wintering birds. This method can only distinguish these northern-wintering birds from southern-wintering (Argentina/Chile). Thus, it is possible that the 45 percent is a low estimate, since tracking data suggest that all birds headed directly to Brazil (which may include both Brazil-wintering and Patagonia-wintering) leave Monomoy on a southeast heading far offshore, while those headed for the Southeast, Caribbean, and Venezuela leave on a southwest heading including flights along the OCS. However, the 45 percent is best available."))
+          "The SB total includes YOY, calculated as 1 chick per pair. Number of pairs is calculated as [the total wintering population (59,269) minus juveniles (5,186)] divided by 2. We have no way to estimate nonbreeding adults, so we include them with breeding adults, then attempt to compensate by using a reproductive rate of 1 chick per pair, below the range estimated by Wilson and Morrison (2018) as needed for a stable population."))
       }
       else if (Species=="Roseate_Tern"){
         return(
@@ -1040,9 +1112,13 @@ server <- function(input, output, session) {
   
   #reactive value to hold the selected grid cell for calculating
   windfarm_loc <- reactiveValues(
+    center = NULL,
+    Latitude = NULL, 
+    Longitude = NULL,
     cell_sf = NULL,
-    Latitude= NULL)
+    )
   
+
   #perform lat/long checks prior to creating spatial data and create a spatial sf object holding the wind farm location and data
   observeEvent(wind_farm_df(), {
     
@@ -1060,12 +1136,15 @@ server <- function(input, output, session) {
           ))
         } else {
           windfarm_loc$Latitude = isolate(wind_farm_df())[1,"Latitude"]
-          loc_sf <- sf::st_as_sf(isolate(wind_farm_df())[1,], coords=c("Longitude", "Latitude" ), crs = sf::st_crs(4326))
-          # CF'original cell match code, which is confusing at best, replaced with spatial functions
+          windfarm_loc$Longitude = isolate(wind_farm_df())[1,"Longitude"]
+          
+          
+          windfarm_loc$center <- sf::st_as_sf(isolate(wind_farm_df())[1,], coords=c("Longitude", "Latitude" ), crs = sf::st_crs(4326))
+
           # Gets cell values from lat/longs provided to provide info on low confidence areas as well as grid cell area in sq. km 
           #intersect with the model grid polygon
-          windfarm_loc$cell_sf <- BOEM_halfdeg_grid_sf[unlist(sf::st_intersects(loc_sf, BOEM_halfdeg_grid_sf)), ]
-          
+          windfarm_loc$cell_sf <- BOEM_halfdeg_grid_sf[unlist(sf::st_intersects(windfarm_loc$center, BOEM_halfdeg_grid_sf)), ]
+
           if(nrow(windfarm_loc$cell_sf)==0){
             showModal(modalDialog(
               title = "Check values for Latitude and Longitude",
@@ -1084,6 +1163,54 @@ server <- function(input, output, session) {
               Please upload appropriate values with wind farm data.")
       ))
     }
+  })
+  
+  #set the migration corridor
+  observe({
+    req(!is.null(windfarm_loc$center) & !is.null(input$species_input))
+    
+    #create the annex6 migration corridor line and split at migration corridor
+    #create an extended line for processsing corridor and getting closest state info
+    EW_line <- create_EW_line(sf::st_coordinates(windfarm_loc$center), length_km = 5000)
+    
+    annex6_vals$mig_corridor_line <- EW_line %>% 
+      lwgeom::st_split(spp_corridor()) %>% st_intersection(spp_corridor()) #%>% st_cast()
+    
+    # corr = spp_corridor()
+    # plot(corr$geometry)
+    # plot(annex6_vals$mig_corridor_line, add= T, col = "blue")
+
+    #calculate migration corridor width at the wind farm in km, convert to equal area proj first
+    annex6_vals$migr_front_km <- round(as.numeric(sf::st_length(st_transform(annex6_vals$mig_corridor_line, crs = 9822))) / 1000, 0) #Albers equal area conic proj
+    output$migr_front_width <- renderText(paste("Migratory front width:",  annex6_vals$migr_front_km, "km"))
+    # sf::write_sf(annex6_vals$mig_corridor_line, "mig_corridor_line.shp", )
+    
+    # Split the line on the state boundaries to get a series of split lines for which the centroid of these allow us to determine the closest
+    # section to the start of the line and thus the section of state closest west of the wind farm. 
+    # line_seg_centers <- lwgeom::st_split(annex6_vals$mig_corridor_line, state_boundaries_wgs84) %>% st_cast() %>% st_centroid()
+    line_seg_centers <- lwgeom::st_split(EW_line, state_boundaries_wgs84) %>% st_cast() %>% st_centroid()
+    
+    nearest_seg_center <- line_seg_centers[(nngeo::st_nn(windfarm_loc$center, line_seg_centers)[[1]]), ]
+    # Error in wk_handle.wk_wkb(wkb, s2_geography_writer(oriented = oriented,  : 
+    # Loop 3 is not valid: Edge 30 h
+    # https://github.com/r-spatial/sf/issues/1902
+    sf_use_s2(FALSE) #Spherical geometry (s2) switched off
+    
+    annex6_vals$nearest_state_due_W <- state_boundaries_wgs84[st_intersects(state_boundaries_wgs84, nearest_seg_center, sparse = F), ]$NAME
+    output$nearest_state <- renderText(paste("Nearest coastal state due west:",  annex6_vals$nearest_state_due_W))
+    
+    #now derive list of coastal locations including and north of the state selected
+    annex6_vals$coastal_locations <- get(paste0(state.abb[grep(annex6_vals$nearest_state_due_W, state.name)], "_states_north"))
+    
+    #set the filter location for population data
+    if (input$species_input == "Red_Knot") {
+      annex6_vals$filter_lcn <- c("All")
+    } else if (input$species_input == "Roseate_Tern") {
+      annex6_vals$filter_lcn <- c("All")
+    } else if(input$species_input == "Piping_Plover") {
+      annex6_vals$filter_lcn <- annex6_vals$coastal_locations
+    }
+    
   })
   
   #render the wind farm data to the tables on the wind farm data tab
@@ -1185,6 +1312,7 @@ server <- function(input, output, session) {
     # May want to check these wind speed/rotational speed data to ask for more accurate data from developers
     # more in line with what stoch_crm requires - should be discussed further
     # 5.5 is the TSR; 60 is for converting radians/s to rpm
+    # browser()
     wind_farm_vals$rtn_speed_data <- data.frame()
     for (t in 1:wind_farm_vals$num_turb_mods){
       RotorSpeed_rpm_mean <-
@@ -1192,6 +1320,7 @@ server <- function(input, output, session) {
       RotorSpeed_rpm_sd <-
         (5.5 *  wind_farm_vals$wind_speed_data$sd[t] * 60) / (pi * 2 *  wind_farm_vals$rtr_radius_data$sd[t])
       RotorSpeed_rpm_sd[is.nan(RotorSpeed_rpm_sd)] = 0
+      RotorSpeed_rpm_sd[is.infinite(RotorSpeed_rpm_sd)] = 0
       wind_farm_vals$rtn_speed_data <- rbind(wind_farm_vals$rtn_speed_data, data.frame(mean = RotorSpeed_rpm_mean, sd = RotorSpeed_rpm_sd))
     }
 
@@ -1243,7 +1372,7 @@ server <- function(input, output, session) {
   bird_flux_vals <- reactiveValues()
   bird_flux_vals$num_birds_cell_perday <- list()
 
-  bird_dens_from_model <- reactive({ #c(input$species_input, windfarm_loc$cell_sf) ,
+  bird_dens_from_model <- eventReactive(input$run, { 
     
     req(nrow(popn_data_vals$spp_popn_mean) > 0 & input$migration_calc_type == "occup_model" & !is.null(input$species_input))
 
@@ -1253,8 +1382,8 @@ server <- function(input, output, session) {
     
     bird_flux_vals$trans_prop <- windfarm_loc$cell_sf[[paste0(spp_code, "_prop_trans")]]
     
-    movement_model_post <- read.csv(unz(paste0("data/movements/", input$species_input, "_movements_", model_input_react(), ".zip"), 
-                                                                            paste0("MovementBaked_", input$species_input, "_", model_input_react(), windfarm_loc$cell_sf$id, ".csv")), header=T)
+    movement_model_post <- read.csv(unz(paste0("data/movements/", input$species_input, "_movements_", species_params_vals$model_input_dist_type, ".zip"), 
+                                                                            paste0("MovementBaked_", input$species_input, "_", species_params_vals$model_input_dist_type, windfarm_loc$cell_sf$id, ".csv")), header=T)
     
     bird_dens <- data.frame(i=1:length(movement_model_post[,1]))
     num_birds_cell_perday <- data.frame(i=1:length(movement_model_post[,1]))
@@ -1271,7 +1400,8 @@ server <- function(input, output, session) {
 
       #Multiply population sample * the posterior of the movement model * the proportion of transient behavior / grid cell mean width in the model cell 
       #to get a sample for drawing for crm calcs
-      num_birds_cell_perday[[m]] <- popn_samples * movement_model_post[[m]] / monthDays(as.Date(paste0("01/", str_pad(i, width = 2, side = "left", pad = "0"), "/2023")))
+      num_birds_cell_perday[[m]] <- popn_samples * movement_model_post[[m]] * bird_flux_vals$trans_prop / 
+        monthDays(as.Date(paste0("01/", str_pad(i, width = 2, side = "left", pad = "0"), "/2023")))
       
       bird_dens[[m]] <- popn_samples * movement_model_post[[m]] * bird_flux_vals$trans_prop / sqrt(windfarm_loc$cell_sf$area)  #birds/km
       
@@ -1286,10 +1416,10 @@ server <- function(input, output, session) {
     
   }) # end bird_dens_from_model
   
-  bird_dens_from_annex6 <- reactive({
+  bird_dens_from_annex6 <- eventReactive(input$run, {
     
     req(nrow(popn_data_vals$spp_popn_mean) > 0 & input$migration_calc_type == "band_2012_annex_6" & 
-          !is.null(input$species_input) & input$migr_front_width > 0)
+          !is.null(input$species_input) & annex6_vals$migr_front_km > 0)
     
     bird_dens <- data.frame(i=1:1000)
 
@@ -1301,9 +1431,11 @@ server <- function(input, output, session) {
     for (i in 1:12){
       #calc samples from mean/sd of population
       m <- month.abb[[i]]
-      popn_samples <- as.numeric(stochLAB::rtnorm_dmp(1000, mean = popn_df[i, "mean"], sd = popn_df[i, "sd"], lower = 0))
       
-      bird_dens[[m]] <- popn_samples / as.numeric(input$migr_front_width)  #birds/km
+      #When mean 0 produce NA as equal to lower bound of 0, make lower bound a very small negative
+      popn_samples <- as.numeric(stochLAB::rtnorm_dmp(1000, mean = popn_df[i, "mean"], sd = popn_df[i, "sd"], lower = -0.00000000000001))
+      
+      bird_dens[[m]] <- popn_samples / as.numeric(annex6_vals$migr_front_km)  #birds/km
       
     }
     
@@ -1316,12 +1448,13 @@ server <- function(input, output, session) {
   
   #add appropriate species model output to map in leaflet when species chosen
   #create the color palette functions for coloring
-  spp_move_data <- eventReactive(c(input$species_input, model_input_react()), {
+  spp_move_data <- reactive({
+      
     req(input$migration_calc_type == "occup_model" & length(input$species_input) > 0)
     
     species <- input$species_input
-    grid_layer <-  paste0(species, "_monthly_prob_BOEM_half_deg_", model_input_react())
-    load(file.path(data_dir, paste0(species, "_monthly_prob_BOEM_half_deg_", model_input_react(),".RData")))
+    grid_layer <-  paste0(species, "_monthly_prob_BOEM_half_deg_", species_params_vals$model_input_dist_type)
+    load(file.path(data_dir, paste0(species, "_monthly_prob_BOEM_half_deg_", species_params_vals$model_input_dist_type,".RData")))
     assign(grid_layer, spp_monthly_prob_BOEM_half_deg)
   })
   
@@ -1334,10 +1467,10 @@ server <- function(input, output, session) {
   })
   
   #modify map to add occupancy data if the model is used for calculation
-  observeEvent(c(input$migration_calc_type, wind_farm_df(), spp_move_data()), {
+  observe({
+      
     #render the map with the lat/longs given in the study area map panel
-    
-    req(input$migration_calc_type == "occup_model")
+    req(input$migration_calc_type == "occup_model" & nrow(spp_move_data())>0)
 
     pal <- meanpal()
     
@@ -1347,20 +1480,19 @@ server <- function(input, output, session) {
     #   CI_bins <- c(0, quantile(non_zero_CIrange, probs=seq(0,1,1/7)))
     #   colorBin("Purples", spp_move_data()$mean_CI_range_daily_allmonths, bins = CI_bins)
     # })
-    
     output$studymap <- renderLeaflet({
       leaflet(options = leafletOptions(preferCanvas = T, tolerance = 1)) %>%
         addEsriBasemapLayer(esriBasemapLayers$Oceans, autoLabels = TRUE) %>%
         addEsriFeatureLayer(
           #add BOEM renewable lease areas as a WFS
-          url = "https://services1.arcgis.com/Hp6G80Pky0om7QvQ/ArcGIS/rest/services/BOEM_Wind_Planning_and_Lease_Areas/FeatureServer/0",
-          weight = 1, fill=FALSE, color = "#808080", #gray
+          url = "https://services7.arcgis.com/G5Ma95RzqJRPKsWL/ArcGIS/rest/services/Wind_Lease_Boundaries__BOEM_/FeatureServer/0",
+          weight = 1, fill=FALSE, color = "yellow",#"#808080", #gray
           layerId = "BOEM_wind_leases",
           group = "BOEM wind leases") %>%
         addEsriFeatureLayer(
-          #add BOEM renewable lease areas as a WFS
-          url = "https://services1.arcgis.com/Hp6G80Pky0om7QvQ/ArcGIS/rest/services/BOEM_Wind_Planning_and_Lease_Areas/FeatureServer/2",
-          weight = 1, fill=FALSE, color = "#C0C0C0", #silver
+          #add BOEM WPAs as a WFS
+          url = "https://services7.arcgis.com/G5Ma95RzqJRPKsWL/arcgis/rest/services/Wind_Planning_Area_Boundaries__BOEM_/FeatureServer/0",
+          weight = 1, fill=FALSE, color = "green", #C0C0C0", #silver
           layerId = "BOEM_wpa",
           group = "BOEM wind planning areas") %>%
         # MOTUS antenna data
@@ -1395,7 +1527,7 @@ server <- function(input, output, session) {
                     color = ~pal(mean_daily_allmonths),
                     highlightOptions = highlightOptions(color = "white", weight = 2),
                     label = ~formatC(mean_daily_allmonths, digits = 2, format = "g"),
-                    group="Occup. prob.") %>%
+                    group="Occup. prob.") %>% 
         #custom legend formatting labels
         addLegend(data=spp_move_data(), pal = pal, values = ~mean_daily_allmonths,
                   title = "\u00B9Mean occup. prob.",
@@ -1415,23 +1547,23 @@ server <- function(input, output, session) {
   })
   
   
-  observeEvent(c(input$migration_calc_type), {
+  observe({
   #render the map with the lat/longs given in the study area map panel
+    req(input$migration_calc_type == "band_2012_annex_6" & !is.null(spp_corridor()))
     
-    req(input$migration_calc_type == "band_2012_annex_6")
     output$studymap <- renderLeaflet({
       leaflet(options = leafletOptions(preferCanvas = T, tolerance = 1)) %>%
         addEsriBasemapLayer(esriBasemapLayers$Oceans, autoLabels = TRUE) %>%
         addEsriFeatureLayer(
           #add BOEM renewable lease areas as a WFS
-          url = "https://services1.arcgis.com/Hp6G80Pky0om7QvQ/ArcGIS/rest/services/BOEM_Wind_Planning_and_Lease_Areas/FeatureServer/0",
-          weight = 1, fill=FALSE, color = "#808080", #gray
+          url = "https://services7.arcgis.com/G5Ma95RzqJRPKsWL/ArcGIS/rest/services/Wind_Lease_Boundaries__BOEM_/FeatureServer/0",
+          weight = 1, fill=FALSE, color = "yellow",#"#808080", #gray
           layerId = "BOEM_wind_leases",
           group = "BOEM wind leases") %>%
         addEsriFeatureLayer(
-          #add BOEM renewable lease areas as a WFS
-          url = "https://services1.arcgis.com/Hp6G80Pky0om7QvQ/ArcGIS/rest/services/BOEM_Wind_Planning_and_Lease_Areas/FeatureServer/2",
-          weight = 1, fill=FALSE, color = "#C0C0C0", #silver
+          #add BOEM WPAs as a WFS
+          url = "https://services7.arcgis.com/G5Ma95RzqJRPKsWL/arcgis/rest/services/Wind_Planning_Area_Boundaries__BOEM_/FeatureServer/0",
+          weight = 1, fill=FALSE, color = "green", #C0C0C0", #silver
           layerId = "BOEM_wpa",
           group = "BOEM wind planning areas") %>%
         # MOTUS antenna data
@@ -1461,6 +1593,8 @@ server <- function(input, output, session) {
             ),
           group = "Wind farm"
         ) %>%
+        addPolygons(data = spp_corridor(), opacity = 0.3, color = "red") %>% 
+        addPolylines(data = annex6_vals$mig_corridor_line, color = "orange", weight = 2, dashArray = "5, 10") %>% 
         setView(lat = mean(wind_farm_df()$Latitude), lng = mean(wind_farm_df()$Longitude), zoom = 6) %>%
         #Layers control
         addLayersControl(
@@ -1471,8 +1605,7 @@ server <- function(input, output, session) {
     })
   })
 
-  
- 
+
   # Additional data checks prior to running SCRAM --------------------------------------
   
   # an object that indexes whether at least one file has been uploaded for both species and turbine data
@@ -1524,7 +1657,7 @@ server <- function(input, output, session) {
     run_times$start <- Sys.time()
     output$run_start_txt <- renderText(paste0("The model run was started at: ", strftime(run_times$start, "%Y-%m-%d %H:%M:%S %Z", tz = "America/New_York")))
     
-    CRSpecies <- isolate(input$species_input)
+    CRSpecies <- input$species_input
     
     if (input$migration_calc_type == "occup_model") {
       bird_density_vals <- bird_dens_from_model()
@@ -1539,7 +1672,6 @@ server <- function(input, output, session) {
       for (t in 1:wind_farm_vals$num_turb_mods){
         
         cTurbModel <- paste0("turbModel", wind_farm_df()[t, "TurbineModel_MW"])
-        
         model_out[[CRSpecies[s]]][[cTurbModel]] <- 
           # bind the inputs and the outputs together into a list
           c(            
@@ -1547,10 +1679,11 @@ server <- function(input, output, session) {
             # inputs = list(
               species = CRSpecies[s],
               migration_calc_type = input$migration_calc_type,
-              migr_front_type = input$migr_front_opt,
-              migr_front_width = input$migr_front_width,
+              # migr_front_type = input$migr_front_opt,
+              migrant_states = paste(annex6_vals$filter_lcn, collapse = ", "),
+              migr_front_width = annex6_vals$migr_front_km,
               model_option = crm_option_radio_react(),  
-              model_type = model_input_react(),
+              model_type = species_params_vals$model_input_dist_type,
               model_iterations = iter_slider_react(),
               turbine_model = wind_farm_df()[t, "TurbineModel_MW"],
               num_turbines = wind_farm_df()[t, "Num_Turbines"],
@@ -1561,7 +1694,7 @@ server <- function(input, output, session) {
             stoch_SCRAM(
               model_options = c(crm_option_radio_react()),
               n_iter = iter_slider_react(),
-              migrant_resident = species_params_vals$migrate_resident_react,
+              migrant_resident = species_params_vals$migrate_resident,
               flt_speed_pars = species_params_vals$flt_spd_data,
               body_lt_pars = species_params_vals$body_lt_data,
               wing_span_pars = species_params_vals$wing_span_data,
@@ -1604,13 +1737,12 @@ server <- function(input, output, session) {
               out_period = "months",
               season_specs = NULL,
               verbose = T,
-              log_file = NULL
+              log_file = NULL,
               #"data/stoch_crm_SCRAM.log",
-              # seed = 33
+              seed = 11
             ))
       }
     }
-    
     stoch_SCRAM_out(model_out)
 
     # running(FALSE) # done with run
@@ -1961,10 +2093,12 @@ server <- function(input, output, session) {
           iterations = input$iter_slider,
           threshold = input$inputthreshold,
           migration_calc_type = input$migration_calc_type,
-          migr_front_type = "",
+          migrant_states = "",
           migr_front_width = "",
+          migr_front_line = "",
+          migr_corridor = "",
           model_option = input$crm_option_radio,
-          model_type = model_input_react(),
+          model_type = species_params_vals$model_input_dist_type,
           model_cell = windfarm_loc$cell_sf,
           trans_prop = bird_flux_vals$trans_prop,
           model_output = stoch_SCRAM_out(),
@@ -1985,10 +2119,12 @@ server <- function(input, output, session) {
           iterations = input$iter_slider,
           threshold = input$inputthreshold,
           migration_calc_type = input$migration_calc_type,
-          migr_front_type = input$migr_front_opt,
-          migr_front_width = input$migr_front_width,
+          migrant_states = annex6_vals$filter_lcn,
+          migr_front_width = annex6_vals$migr_front_km,
+          migr_front_line = annex6_vals$mig_corridor_line,
+          migr_corridor = spp_corridor(),
           model_option = input$crm_option_radio,
-          model_type = model_input_react(),
+          model_type = species_params_vals$model_input_dist_type,
           model_cell = windfarm_loc$cell_sf,
           trans_prop = "",
           model_output = stoch_SCRAM_out(),
@@ -1996,7 +2132,7 @@ server <- function(input, output, session) {
           spp_move_data_summary = "",
           prob_exceed = prob_exceed_threshold(),
           species_labels = SpeciesLabels,
-          species_popn_data = popn_data[which(popn_data$Species == input$species_input), ],
+          species_popn_data = annex6_vals$spp_popn_data,
           species_popn_assumptions = spp_popn_notes()
         )
         
@@ -2119,7 +2255,7 @@ server <- function(input, output, session) {
             threshold = input$inputthreshold,
             migration_calc_type = input$migration_calc_type,
             model_option = input$crm_option_radio,
-            model_type = model_input_react(),
+            model_type = species_params_vals$model_input_dist_type,
             model_cell = windfarm_loc$cell_sf,
             trans_prop = bird_flux_vals$trans_prop,
             model_output = stoch_SCRAM_out(),
@@ -2140,15 +2276,14 @@ server <- function(input, output, session) {
             iterations = input$iter_slider,
             threshold = input$inputthreshold,
             migration_calc_type = input$migration_calc_type,
-            migr_front_type = input$migr_front_opt,
-            migr_front_width = input$migr_front_width,
+            migrant_states = annex6_vals$filter_lcn,
+            migr_front_width = annex6_vals$migr_front_km,
             model_option = input$crm_option_radio,
             model_cell = windfarm_loc$cell_sf,
             model_output = stoch_SCRAM_out(),
             prob_exceed = prob_exceed_threshold(),
             species_labels = SpeciesLabels,
-            species_popn_data = annex6_migr_data %>%
-              dplyr::filter(Species == input$species_input & migr_front_km == as.numeric(input$migr_front_width)),
+            species_popn_data = annex6_vals$spp_popn_data,
             species_popn_assumptions = spp_popn_notes())
         }
         save(scram_params, file = file.path(tmpdir, paste0('SCRAM2_model_pars_output_', strftime(isolate(run_times$end), "%Y%m%d_%H%M%S"),'.RData')))
