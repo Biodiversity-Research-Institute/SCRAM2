@@ -70,6 +70,16 @@ shut_up = function(expr) {
   # y
 }
 
+#function to remove UI reference from server
+#https://www.r-bloggers.com/2020/02/shiny-add-removing-modules-dynamically/
+remove_shiny_inputs <- function(id, .input) {
+  invisible(
+    lapply(grep(id, names(.input), value = TRUE), function(i) {
+      .subset2(.input, "impl")$.values$remove(i)
+    })
+  )
+}
+
 #function to create an east-west line of known lenght and center point a specified distance
 #center_pt_lat_long is the center of the line lat long values vector
 create_EW_line <- function(center_pt_lat_long, length_km){
@@ -85,6 +95,12 @@ create_EW_line <- function(center_pt_lat_long, length_km){
   EW_line =  sf::st_sf(EW_line, crs = sf::st_crs(4326))
   return(EW_line)
 }
+
+#function to perform linear interpolation between two variables
+interp <- function(a, b, f){
+  return(a * (1 - f) + (b * f))
+}
+
 
 SC_states_north = c("South Carolina","North Carolina","Virginia","Maryland","Delaware","New Jersey","New York",
                     "Connecticut","Rhode Island","Massachusetts","New Hampshire","Maine","Eastern Canada")

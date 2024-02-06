@@ -180,8 +180,8 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
                        wf_latitude,
                        tidal_offset,
                        lrg_arr_corr = TRUE,
-                       xinc = 0.05,
-                       yinc = 0.05,
+                       xinc = 0.01, #Change from 0.05 to account for larger turbines
+                       yinc = 0.01, #Change from 0.05 to account for larger turbines
                        ...) {
   
   # Input validation 1: chosen model options Vs. required data ----------------
@@ -263,7 +263,6 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
     ## variables to lower-case
     flight_type <- tolower(flight_type)
     
-    
     ## input validation 2: input formatting
     validate_inputs(
       model_options = model_options,
@@ -295,7 +294,7 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
     
     ## Rotor's grid data for extended models
     if (any(model_options %in% c('3', '4'))) {
-      rotor_grids <- generate_rotor_grids(yinc = yinc, xinc = xinc, chord_prof)
+      rotor_grids <- generate_rotor_grids_SCRAM(yinc = yinc, xinc = xinc, chord_prof)
     }
     
     ## Daylight hours and night hours per month based on the windfarm's latitude
@@ -340,7 +339,7 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   if(is.data.frame(dens_month)) dens_month <- dens_month$dens
   if(is.data.frame(turb_oper_month)) turb_oper_month <- turb_oper_month$prop_oper
   
-  
+
   # Further model inputs   -----------------------------------------------------
   
   ## flight-type correction factor
@@ -385,7 +384,6 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
     L_ArrayCF <- 1
   }
   
-  
   # STEP 3 - Calculate bird flux per month
   if (migrant_resident == "migrant") {
     #migrant flux calculations (Band 2012 Annex 6) - for SCRAM use  model grid cell width and popn_est = popn in the grid cell
@@ -419,6 +417,16 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
         rotor_radius = rotor_radius,
         tidal_offset = tidal_offset,
         yinc = yinc)
+    
+    # #change to using the improved fhd prop summarization function
+    # gen_fhd_at_rotor <-
+    #   get_fhd_rotor_SCRAM(
+    #     hub_height = hub_height,
+    #     fhd = gen_fhd,
+    #     rotor_radius = rotor_radius,
+    #     tidal_offset = tidal_offset,
+    #     yinc = yinc)
+    
   }
   
   ## for model option 4, i.e. using survey FHD
@@ -448,7 +456,7 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   
   if(any(model_options == '2')){
     band_outputs$opt2 <-
-      crm_opt2(
+      crm_opt2_SCRAM(
         flux_factor = flux_fct,
         d_y = gen_fhd_at_rotor,
         avg_prob_coll = avg_collision_risk,
@@ -457,10 +465,29 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
         lac_factor = L_ArrayCF)
   }
   
-  
   if(any(model_options == '3')){
+    # band_outputs$opt3 <-
+    #   crm_opt3(
+    #     rotor_grids = rotor_grids,
+    #     d_y_gen = gen_fhd_at_rotor,
+    #     rotor_radius = rotor_radius,
+    #     blade_width = blade_width,
+    #     rotor_speed = rotor_speed,
+    #     blade_pitch = blade_pitch,
+    #     flight_type = flight_type,
+    #     wing_span = wing_span,
+    #     flight_speed = flight_speed,
+    #     body_lt = body_lt,
+    #     n_blades = n_blades,
+    #     prop_upwind = prop_upwind,
+    #     avoidance_rate = avoid_rt_ext,
+    #     flux_factor = flux_fct,
+    #     mth_prop_oper = turb_oper_month,
+    #     lac_factor = L_ArrayCF
+    #   )
+    # Account for fixed yinc in get_collisions_extended
     band_outputs$opt3 <-
-      crm_opt3(
+      crm_opt3_SCRAM(
         rotor_grids = rotor_grids,
         d_y_gen = gen_fhd_at_rotor,
         rotor_radius = rotor_radius,

@@ -224,8 +224,8 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
                         wf_latitude,
                         tidal_offset,
                         lrg_arr_corr = TRUE,
-                        xinc = 0.05,
-                        yinc = 0.05,
+                        xinc = 0.01, #Change from 0.05 to account for larger turbines
+                        yinc = 0.01, #Change from 0.05 to account for larger turbines
                         out_format = c("draws", "summaries"),
                         out_sampled_pars = FALSE,
                         out_period = c("months", "seasons", "annum"),
@@ -322,7 +322,7 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   
   
   # Input Format Validation ----------------------------------------------------------
-  if(verbose) cli::cli_progress_step("Checking inputs")
+  if(verbose) cli::cli_progress_step("Checking inputs", spinner = TRUE)
   
   validate_inputs(
     model_options = model_options,
@@ -370,7 +370,7 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   
   
   # Data preparation -------------------------------------------------------
-  if(verbose) cli::cli_progress_step("Preparing data")
+  if(verbose) cli::cli_progress_step("Preparing data", spinner = TRUE)
   
   ## ---- Set months under modelling ----- #
   ### extract and standardize month format from monthly data sets
@@ -397,8 +397,6 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   ### Order chronologically
   mod_mths <- mod_mths[order(match(mod_mths, month.abb))]
   n_months <- length(mod_mths)
-  
-  
   
   ## ---- Seasons, checking consistency with modelling months ----- #
   if(out_period == "seasons"){
@@ -435,10 +433,11 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   # subset for modelling months
   wf_daynight_hrs_month <- subset(wf_daynight_hrs_month, Month %in% mod_mths)
   
-  
   # ------ Generate grid data for extended model  -------- #
   if(any(model_options %in% c('3', '4'))){
-    rotor_grids <- generate_rotor_grids(yinc = 0.05, xinc = 0.05, bld_chord_prf)
+    # rotor_grids <- generate_rotor_grids(yinc = 0.05, xinc = 0.05, bld_chord_prf)
+    rotor_grids <- generate_rotor_grids_SCRAM(yinc = yinc, xinc = xinc, bld_chord_prf)
+    
   }else{
     rotor_grids <- NULL
   }
@@ -455,13 +454,12 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   
   
   # Generate random draws of parameters ----------------------------------------
-  if(verbose) cli::cli_progress_step("Sampling parameters")
+  if(verbose) cli::cli_progress_step("Sampling parameters", spinner = TRUE)
   
   # set random seed, if required, for reproducibility
   if(!is.null(seed)){
     set.seed(seed)
   }
-  
   param_draws <- sample_parameters(
     model_options = model_options,
     n_iter = n_iter,
@@ -489,7 +487,6 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
     trb_downtime_pars = trb_downtime_pars,
     lrg_arr_corr = lrg_arr_corr
   )
-  
   # n_iterating over sampled parameters  -----------------------------------------
   
   if(verbose) cli::cli_progress_step("Calculating collisions | {i}/{n_iter} iterations",
@@ -498,6 +495,7 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   
   for (i in 1:n_iter){
     # Collisions under chosen model Options for current sampled parameters
+    # browser()
     collisions_i <-
       band_SCRAM(
         model_options = model_options,
@@ -543,7 +541,7 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   
   
   # Gathering Outputs ----------------------------------------------------------
-  if(verbose) cli::cli_progress_step("Sorting outputs")
+  if(verbose) cli::cli_progress_step("Sorting outputs", spinner = TRUE)
   
   #scrm_ouputs <- list()
   

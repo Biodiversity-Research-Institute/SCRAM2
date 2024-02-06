@@ -19,7 +19,7 @@ params:
   model_option: NA
   model_type: NA
   model_cell: NA
-  trans_prop: NA
+  # trans_prop: NA
   model_output: NA
   daily_cell_flux: NA
   spp_move_data_summary: NA
@@ -99,7 +99,7 @@ SCRAM was developed by Biodiversity Research Institute, the University of Rhode 
 
 ```{r, echo=FALSE, warning=FALSE, message = FALSE}
   
-option_names <-  c("Option 1: faster approximation", NA,"Option 3: slower but more precise assessment")
+option_names <-  c(NA, "Option 2: faster approximation", "Option 3: slower but more precise assessment")
 
 if(params$migration_calc_type == "occup_model") {
   model_txt <- paste0("Type of model employed: ", params$model_type , "\n")
@@ -147,7 +147,8 @@ num_turb_mods <- length(params$model_output[[1]])
 
 #get fields for creating table. 
 #not sure where "Upwind Prop." comes from in the code, also need to deal with avoid_basic and avoid_ext
-if(params$model_option == "1") {
+# changed from option 1 to 2 as this is really what is being implemented
+if(params$model_option == "2") {
   params_list <- c("avoid_bsc", "wing_span", "body_lt", "flt_speed")  
   tbl_names <- c("Species", "Turbine model", "Avoidance basic", "Wing span (m)", "Body length (m)", "Flight speed (m/s)")
 } else if(params$model_option == "3") {
@@ -412,14 +413,14 @@ map_extent_sm <- st_union(windfarm_loc) %>% st_buffer(280000) %>% st_bbox()
 quants <- function(val) {
   #issue with zero inflated bins - need to generate non-zero quants
   non_zero_mean <- val[val>0]
-  mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7)))
+  mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7), na.rm = T))
   # mean_bins <- quantile(val, probs=seq(0,1,1/8))
   return(cut(val, mean_bins, labels = F, include.lowest = T, right = F))
 }
 
 quants_labels <- function(val) {
   non_zero_mean <- val[val>0]
-  mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7)))
+  mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7), na.rm = T))
   # mean_bins <- quantile(val, probs=seq(0,1,1/8))
   return(cut(val, mean_bins, ordered_result=T, include.lowest = T, right = F))
 }
@@ -513,9 +514,10 @@ if(params$migration_calc_type == "occup_model") {
     
     for(t in 1:num_turb_mods){
       model_out <- params$model_output[[s]][[t]]
-      # model_out <- params$model_output[[1]][[1]]
-      
-      spp_daily_cell_count <- params$daily_cell_flux[[1]] %>% 
+
+      # spp_daily_cell_count <- params$daily_cell_flux[[1]] %>% 
+      #   dplyr::select(-c("i"))
+      spp_daily_cell_count <- params$daily_cell_flux %>% 
         dplyr::select(-c("i"))
       
       spp_daily_cell_count_melt <- reshape2::melt(spp_daily_cell_count, value.name = "daily_cell_count") %>% 
