@@ -43,7 +43,7 @@
 # 16 Nov 23 - updated species popn data to harmonize between Band 2012 Annex 6 and SCRAM
 # 09 Jan 2023 Added update models with additional tags under vers 2.0 to include additional tags not available for version 1. 
 # 19 Jan 2024 - 2.0.1 - discovered an issue where the proportions within flight bands were not being accurately accounted for when you had a fhd that was not smooth. This led to discovery of fixed yinc values within get_collisions_extended function of stochLAB. Created our own version to account for changing yinc values. Other minor bug fixes with reporting. Added basic avoidance values.
-
+#06 Feb 2024 - 2.0.2 - in some cases, with PIPL output is very skewed by small number of very large collision esimates which leads to means falling outside of 95% range suggesting not appropriate to use mean as central tendency, changed to providing median. Also added an input file check to see if csv and had correct headers.
 
 # load scripts
 source("scripts/helpers.R")
@@ -58,8 +58,9 @@ source("scripts/crm_opt2_SCRAM.R")
 source("scripts/get_prop_crh_fhd_SCRAM.R")
 
 # SCRAM_version = "1.0.3 - Cathartic Adela" 
-# SCRAM_version = "2.0.0 - Altruistic Anaheim"
-SCRAM_version = "2.0.1 - Bombastic Anaheim"   #https://www.cayennediane.com/big-list-of-hot-peppers/
+# "2.0.0 - Altruistic Anaheim"
+# "2.0.1 - Bombastic Anaheim" 
+SCRAM_version = "2.0.2 - Crooning Anaheim"   #https://www.cayennediane.com/big-list-of-hot-peppers/
 
 options(shiny.trace = F)
 
@@ -174,7 +175,7 @@ ui <- dashboardPage(
       tags$a(
         img(src = "SCRAM_logo_400px.png", alt="Stochastic Collision Risk Assessment for Movement", width = "400px", class="header_img"),
         href = 'https://briwildlife.org/SCRAM',
-        style = "margin-bottom: 10px;",# padding-right:20px; margin-bottom: -10px; margin-top:-45px;",
+        style = "margin-bottom: 10px;",
         target = '_blank',
         id = "lbl_SCRAMLogoLink"
       ),
@@ -183,19 +184,14 @@ ui <- dashboardPage(
       textInput(inputId = "project_name", label = "Project name: ", value = "", width = "380px", placeholder = "Project"),
       div(style = "margin-top: -20px;"),  #reduce space between elements
       textInput(inputId = "modeler", label = "Name of person running SCRAM: ", value = "", width = "380px", placeholder = "Name"),
-      
-      # conditionalPanel( 
-      #   #show only when project names entered
-      #   condition = ('input.project_name != "" & input.modeler != ""'),
         
-        ################### Input: Select the migration calculation type - movement model or annex 6 type
-        radioButtons(inputId = "migration_calc_type",
-                     # label ="Select included species data or your own:",
-                     label ="Select migration calculation mode:",
-                     choices = c("Movement model" = "occup_model", "Band 2012 annex 6" = "band_2012_annex_6"),
-                     selected = "occup_model"),
-      # ),
-      
+      ################### Input: Select the migration calculation type - movement model or annex 6 type
+      radioButtons(inputId = "migration_calc_type",
+                   # label ="Select included species data or your own:",
+                   label ="Select migration calculation mode:",
+                   choices = c("Movement model" = "occup_model", "Band 2012 annex 6" = "band_2012_annex_6"),
+                   selected = "occup_model"),
+
       #################Enter wind farm parameters
       conditionalPanel( 
         #show only when species data have been inputted
@@ -223,8 +219,6 @@ ui <- dashboardPage(
         
         ################### Input: Select the model type and species to model
 
-        # div(style = "margin-top: -20px;"),  #reduce space between elements
-        
         radioButtons(inputId = "species_input",
                      # label ="Select included species data or your own:",
                      label ="Select included species:",
@@ -274,8 +268,8 @@ ui <- dashboardPage(
         radioButtons("crm_option_radio", "Band (2012) equivalent CRM options:",
                      c("Option 2: faster approximation" = "2", "Option 3: slower but more precise" = "3"), selected = "3"),
         div(style = "margin-top: -20px;"),  #reduce space between elements
-        sliderInput("iter_slider", label = "Model iterations (rec. min. 1,000)", min = 100, 
-                    max = 10000, value = 1000, step=100, width = '95%'), 
+        sliderInput("iter_slider", label = "Model iterations (rec. final run 10,000)", min = 2500, 
+                    max = 25000, value = 2500, step=500, width = '95%'), 
         htmlOutput("iter_message", style = "margin-top: -10px; margin-left: 10px"),
         numericInput(
           inputId = "inputthreshold",
@@ -550,7 +544,7 @@ server <- function(input, output, session) {
     Check the wind farm data for correct values in the include maps and tables. 
     Correct any errors and reload as necessary. <br>
     6) Choose which version of the CRM to run.<br>
-    7) Select the number of iterations (100-10,0000).<br>
+    7) Select the number of iterations (2,500-25,0000), recommended 10,000 min. for final runs.<br>
     8) Set a threshold for the maximum acceptable number of collisions. <br>
     9) Run CRM. <br>
     10) Generate summary report and/or download results for each iteration. <br>
@@ -950,20 +944,42 @@ server <- function(input, output, session) {
   
   
   # Wind farm data ----------------------------------------------------------
-  
-  observeEvent(input$file_wf_param, {
 
-    Sys.sleep(2)  #wait until species data has rendered and then switch also helps with pre-rendering maps, etc.
-    updateTabItems(session, inputId = "tabsetpan", selected = "wind_farm_panel")})
-  
   load(file = file.path(data_dir, "BOEM_halfdeg_grid_sf.RData")) #BOEM_halfdeg_grid_sf
   
+  # Perform series of checks on file inputs prior to proceeding with accepting inputs for processing
   wind_farm_df <- eventReactive(input$file_wf_param, {
     infile <- input$file_wf_param
-    if (is.null(infile)) {
+    #check file for correct type (CSV)
+    if (!grepl("\\.csv$", infile$name)) {
+      showModal(modalDialog(
+        title = "Incorrect file type",
+        footer = modalButton("OK"),
+        paste("SCRAM requires a comma separated value file (CSV) file for wind farm inputs. Please check the example input file for correct format.")
+      ))
       return(NULL)
+    } else { #file type ok
+      wf_file <- suppressWarnings(read.csv(infile$datapath, header=T))
+      #get correct column names from the example input file
+      correct_cols <- colnames(read.csv("data/TurbineData_inputs_2run_example.csv", header=T))
+      current_cols <- colnames(wf_file)
+      #now check to see if the csv file has the column headings
+      if (identical(current_cols, correct_cols)==F) {
+        showModal(modalDialog(
+          title = "Incorrect file header",
+          footer = modalButton("OK"),
+          paste0("SCRAM requires the following data columns for wind farm inputs: ", 
+              paste0(correct_cols, collapse = ", "), ". ",  
+              "Please check the example input file for correct format.")
+        ))
+        return(NULL)
+      } else {  #file header ok
+        Sys.sleep(2)  #wait until species data has rendered and then switch also helps with pre-rendering maps, etc.
+        updateTabItems(session, inputId = "tabsetpan", selected = "wind_farm_panel")
+        #return the inputted file
+        return(wf_file)
+      }
     }
-    suppressWarnings(read.csv(infile$datapath, header=T))
   })
   
   #reactive value to hold the selected grid cell for calculating
@@ -1353,14 +1369,7 @@ server <- function(input, output, session) {
     req(input$migration_calc_type == "occup_model" & !is.null(spp_move_data()))
 
     pal <- meanpal()
-    
-    # CIpal <- eventReactive(spp_move_data(), {
-    #   #issue with zero inflated bins - need to generate non-zero quants
-    #   non_zero_CIrange <- spp_move_data()$mean_CI_range_daily_allmonths[spp_move_data()$mean_CI_range_daily_allmonths>0]
-    #   CI_bins <- c(0, quantile(non_zero_CIrange, probs=seq(0,1,1/7)))
-    #   colorBin("Purples", spp_move_data()$mean_CI_range_daily_allmonths, bins = CI_bins)
-    # })
-    
+
     output$studymap <- renderLeaflet({
       leaflet(options = leafletOptions(preferCanvas = T, tolerance = 1)) %>%
         addEsriBasemapLayer(esriBasemapLayers$Oceans, autoLabels = TRUE) %>%
@@ -1586,7 +1595,7 @@ server <- function(input, output, session) {
               verbose = T,
               log_file = NULL,
               #"data/stoch_crm_SCRAM.log",
-              seed = 11
+              seed = NULL#11
             ))
       }
     }
@@ -1871,14 +1880,14 @@ server <- function(input, output, session) {
       # copy the report file to a temporary directory before processing it, in
       # case we don't have write permissions to the current working dir (which
       # can happen when deployed).
-      tempReport <- file.path(tempdir(), "report_SCRAM2_v081823.Rmd")
+      tempReport <- file.path(tempdir(), "report_SCRAM2_v020624.Rmd") #report_SCRAM2_v081823.Rmd
       img1 <- file.path(tempdir(), "SCRAM_logo_2_4inch.jpg")
       img2 <- file.path(tempdir(), "BRI_color_logo_no_words.png")
       img3 <- file.path(tempdir(), "URI.png")
       img4 <- file.path(tempdir(), "USFWS.png")
       img5 <- file.path(tempdir(), "BOEM.png")
 
-      file.copy("scripts/report_SCRAM2_v081823.Rmd", tempReport, overwrite = TRUE)
+      file.copy("scripts/report_SCRAM2_v020624.Rmd", tempReport, overwrite = TRUE) #report_SCRAM2_v081823.Rmd
       # need to copy images to temp dir otherwise can't be found
       # see: (https://stackoverflow.com/questions/35800883/using-image-in-r-markdown-report-downloaded-from-shiny-app?rq=1)
       file.copy("www/SCRAM_logo_2_4inch.jpg", img1, overwrite = TRUE)

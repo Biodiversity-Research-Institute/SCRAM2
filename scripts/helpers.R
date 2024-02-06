@@ -35,7 +35,7 @@ library(USA.state.boundaries)
 library(ggplot2)
 library(cowplot)
 
-set.seed(11)
+# set.seed(11)
 
 #load the species movement model mean monthly probability data
 #generate all species data
