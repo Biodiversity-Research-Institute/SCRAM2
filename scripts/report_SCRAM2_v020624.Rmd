@@ -62,7 +62,6 @@ library(sf)
 library(basemaps)  #ATG - 010924 need Terra version 1.7.29 so as not to crash on mosaicking basemaps, and also deal with NAs and other issues
 library(ggnewscale)
 options(tinytex.verbose = TRUE)
-# knitr::knit_hooks$set(inline = as.character)
 # load(file = "P:/SCRAM/BRI/SCRAM2_shiny/scripts/test_params.RData")
 
 ```
@@ -529,13 +528,16 @@ if(params$migration_calc_type == "occup_model") {
       
       daily_cell_summary <- spp_daily_cell_count_melt %>%
         dplyr::group_by(species, turbine_model, month) %>%
-        dplyr::summarise(mean = formatC(mean(daily_cell_count, na.rm = T), digits=3, format="g"),
+        # dplyr::summarise(mean = formatC(mean(daily_cell_count, na.rm = T), digits=3, format="g"),
+        dplyr::summarise(median = formatC(median(daily_cell_count, na.rm = T), digits=3, format="g"),
                          lower = formatC(quantile(daily_cell_count, c(0.025), na.rm=T), digits=3, format="g"),
                          upper = formatC(quantile(daily_cell_count, c(0.975), na.rm=T), digits=3, format="g")) %>%
         # dplyr::mutate(turbine = sub("turbModel", "", turbine_model)) %>%
         dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
         dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
-        dplyr::mutate(month = as.character(month), population = popn_col[,1],`Est. daily num. of animals in the model cell` = paste0(mean, " (", lower, ", ", upper, ")")) %>%
+        # dplyr::mutate(month = as.character(month), population = popn_col[,1],`Est. daily num. of animals in the model cell` = paste0(mean, " (", lower, ", ", upper, ")")) %>%
+        dplyr::mutate(month = as.character(month), population = popn_col[,1],`Est. daily num. of animals in the model cell` = paste0(median, " (", lower, ", ", upper, ")")) %>%
+
         dplyr::mutate_if(is.character, str_replace, pattern = "  \\(  ,   \\)", replacement = "")
       
       #calculate daily collisions from monthly collision rates
@@ -553,12 +555,14 @@ if(params$migration_calc_type == "occup_model") {
       #calculate mean and 95% CI for daily collisions
       daily_collisions_summary <- daily_collisions_melt %>%
         dplyr::group_by(species, turbine_model, month) %>%
-        dplyr::summarise(mean = formatC(mean(coll_rate, na.rm = T), digits=3, format="g"),
+        # dplyr::summarise(mean = formatC(mean(coll_rate, na.rm = T), digits=3, format="g"),
+        dplyr::summarise(median = formatC(median(coll_rate, na.rm = T), digits=3, format="g"),
                          lower = formatC(quantile(coll_rate, c(0.025), na.rm=TRUE), digits=3, format="g"),
                          upper = formatC(quantile(coll_rate, c(0.975), na.rm=TRUE), digits=3, format="g")) %>%
         dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
         dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
-        dplyr::mutate(month = as.character(month), `Est. daily num. of collisions in the wind farm` = paste0(mean, " (", lower, ", ", upper, ")")) %>%
+        # dplyr::mutate(month = as.character(month), `Est. daily num. of collisions in the wind farm` = paste0(mean, " (", lower, ", ", upper, ")")) %>%
+        dplyr::mutate(month = as.character(month), `Est. daily num. of collisions in the wind farm` = paste0(median, " (", lower, ", ", upper, ")")) %>%
         dplyr::mutate_if(is.character, str_replace, pattern = "  \\(  ,   \\)", replacement = "")
       
       daily_crm_summary <- as.data.frame(cbind(daily_cell_summary[, c("species","turbine_model","month", "population", "Est. daily num. of animals in the model cell")], daily_collisions_summary[, "Est. daily num. of collisions in the wind farm"]))
@@ -574,7 +578,7 @@ if(params$migration_calc_type == "occup_model") {
                                    "Est. daily num. of collisions in the wind farm")
   
   kbl(model_summary_out, booktabs=T, align = "lcccc", digits = 32,
-      caption = "The populations estimate for each month and the estimated daily number of (95 perc. prediction intervals) animals in the model cell and collisions at the wind farm. Results are not shown for months that do not have movement data. This does not mean that collisions could not occur in those months, but we do not have movement data to estimate collisions during these periods.") %>%
+      caption = "The populations estimate for each month and the median estimated daily number of (95 perc. prediction intervals) animals in the model cell and collisions at the wind farm. Results are not shown for months that do not have movement data. This does not mean that collisions could not occur in those months, but we do not have movement data to estimate collisions during these periods.") %>%
     kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>%
     row_spec(0,bold=T, extra_css = "vertical-align:text-bottom !important;") %>%
     column_spec(1,bold=T,color="red", width = "1.25in") %>%
@@ -614,13 +618,15 @@ for(s in 1:num_species){
 #calculate mean and 95% CI  
 monthly_summary <- model_out_melt %>% 
   dplyr::group_by(species, turbine_model, month) %>% 
-  dplyr::summarise(mean = formatC(mean(coll_rate, na.rm = T),digits=3, format="g"), 
+  # dplyr::summarise(mean = formatC(mean(coll_rate, na.rm = T),digits=3, format="g"), 
+  dplyr::summarise(median = formatC(median(coll_rate, na.rm = T), digits=3, format="g"), 
                    lower = formatC(quantile(coll_rate, c(0.025), na.rm=TRUE), digits=3, format="g"),
                    upper = formatC(quantile(coll_rate, c(0.975), na.rm=TRUE), digits=3, format="g")) %>% 
   dplyr::mutate(turbine_model = sub("turbModel", "", turbine_model)) %>% 
   dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
   dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
-  dplyr::mutate(month = as.character(month), `Est. num. of collisions` = paste0(mean, " (", lower, ", ", upper, ")")) %>% 
+  # dplyr::mutate(month = as.character(month), `Est. num. of collisions` = paste0(mean, " (", lower, ", ", upper, ")")) %>% 
+  dplyr::mutate(month = as.character(month), `Est. num. of collisions` = paste0(median, " (", lower, ", ", upper, ")")) %>% 
   dplyr::mutate_if(is.character, str_replace, pattern = " \\(  ,   \\)", replacement = "")
 
 #calculate annual summary of model runs, mean of sum of posteriors and then quantiles of these sums for predict interval
@@ -630,13 +636,15 @@ annual_sum <- model_out_melt %>%
 
 annual_rate <- annual_sum %>% 
   dplyr::group_by(species, turbine_model) %>% 
-  dplyr::summarise(mean = formatC(mean(sum_monthly, na.rm = T),digits=3, format="g"), 
+  # dplyr::summarise(mean = formatC(mean(sum_monthly, na.rm = T),digits=3, format="g"), 
+  dplyr::summarise(median = formatC(median(sum_monthly, na.rm = T),digits=3, format="g"), 
                    lower = formatC(quantile(sum_monthly, c(0.025), na.rm=TRUE), digits=3, format="g"),
                    upper = formatC(quantile(sum_monthly, c(0.975), na.rm=TRUE), digits=3, format="g"))  %>% 
   dplyr::mutate(turbine_model = sub("turbModel", "", turbine_model)) %>% 
   dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
   dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
-  dplyr::mutate(`Est. num. of collisions` = paste0(mean, " (", lower, ", ", upper, ")")) %>% 
+  # dplyr::mutate(`Est. num. of collisions` = paste0(mean, " (", lower, ", ", upper, ")")) %>% 
+  dplyr::mutate(`Est. num. of collisions` = paste0(median, " (", lower, ", ", upper, ")")) %>% 
   dplyr::mutate_if(is.character, str_replace, pattern = " \\(  ,   \\)", replacement = "") %>% 
   dplyr::mutate(month="Annual")
 
@@ -646,7 +654,7 @@ annual_summary$species <- gsub("_", " ", annual_summary$species)
 colnames(annual_summary) <- c("Species", "Turbine model", "month", "Est. num. of collisions")
 
 kbl(annual_summary, booktabs=T, align = "lccc", digits = 32,
-    caption = "The estimated monthly number (95 perc. prediction intervals) of collisions. Results are not shown for months that do not have movement data and does not mean that collisions could not occur in those months.") %>%
+    caption = "The estimated monthly median number (95 perc. prediction intervals) of collisions. Results are not shown for months that do not have movement data and does not mean that collisions could not occur in those months.") %>%
   kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
   row_spec(0,bold=T, extra_css = "vertical-align:text-bottom !important;") %>% 
   column_spec(1,bold=T,color="red", width = "1.25in") %>% 
@@ -757,7 +765,7 @@ for(s in 1:num_species){
 <br>
 
 
-```{r, fig3, fig.height = 4, echo=FALSE, warning=FALSE, message = FALSE, fig.cap="The predicted mean and 95 perc. prediction intervals of the number of collisions per month. Results are not shown for months that do not have movement data. Total annual collision rate and 95 perc. prediction interval are given at top. The threshold is shown divided by the number of months that movement data were available."}
+```{r, fig3, fig.height = 4, echo=FALSE, warning=FALSE, message = FALSE, fig.cap="The predicted median and 95 perc. prediction intervals of the number of collisions per month. Results are not shown for months that do not have movement data. Total annual collision rate and 95 perc. prediction interval are given at top. The threshold is shown divided by the number of months that movement data were available."}
 
 for(s in 1:num_species){
   for(t in 1:num_turb_mods){
@@ -798,7 +806,8 @@ for(s in 1:num_species){
     #calculate mean and 95% CI  
     model_summary <- monthly_collisions_melt %>% 
       dplyr::group_by(month) %>% 
-      dplyr::summarise(mean_coll_rate = mean(coll_rate, na.rm = T), 
+      # dplyr::summarise(mean_coll_rate = mean(coll_rate, na.rm = T), 
+      dplyr::summarise(median_coll_rate = median(coll_rate, na.rm = T), 
                        lower_coll_rate = quantile(coll_rate, c(0.025), na.rm=TRUE),
                        upper_coll_rate = quantile(coll_rate, c(0.975), na.rm=TRUE))
     
@@ -824,7 +833,7 @@ for(s in 1:num_species){
     
     print(ggplot(model_summary) +
             geom_hline(yintercept = monthly_threshold, color = "red", linetype = "dashed") +
-            geom_point(aes(x=month, y=mean_coll_rate)) +
+            geom_point(aes(x=month, y=median_coll_rate)) + #mean_coll_rate
             geom_linerange(aes(x = month, ymin = lower_coll_rate, ymax = upper_coll_rate)) + 
             ggtitle(main_label, subtitle = annual_collision_rate_txt) +
             ylab("Est. num. of collisions in the month listed") +
