@@ -85,7 +85,7 @@ ui <- dashboardPage(
         icon('fa-solid fa-book', "fa-2x"),
         style = "padding-top: 10px; padding-bottom: 10px",
         target = '_blank',
-        href = "SCRAM_manual_v103_031723.pdf"),
+        href = "SCRAM_manual_v2_02_020824.pdf"),
       style = "float: left"
     ),
     tags$li(
@@ -1036,7 +1036,7 @@ server <- function(input, output, session) {
   #set the migration corridor
   observe({
     req(!is.null(windfarm_loc$center) & !is.null(input$species_input))
-    
+
     #create the annex6 migration corridor line and split at migration corridor
     #create an extended line for processing corridor and getting closest state info
     EW_line <- create_EW_line(st_coordinates(windfarm_loc$center), length_km = 5000)
@@ -1063,7 +1063,8 @@ server <- function(input, output, session) {
     output$nearest_state <- renderText(paste("Nearest coastal state due west:",  annex6_vals$nearest_state_due_W))
     
     #now derive list of coastal locations including and north of the state selected
-    annex6_vals$coastal_locations <- get(paste0(state.abb[grep(annex6_vals$nearest_state_due_W, state.name)], "_states_north"))
+    #ATG - fixed issue where multiple states selected with grep if for example Virginia is in mult. states
+    annex6_vals$coastal_locations <- get(paste0(state.abb[grep(paste0("^(",annex6_vals$nearest_state_due_W, ")$"), state.name)], "_states_north"))
     
     #set the filter location for population data
     if (input$species_input == "Red_Knot") {
