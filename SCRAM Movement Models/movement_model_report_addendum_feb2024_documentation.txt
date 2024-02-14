@@ -1,0 +1,60 @@
+This documentation is intended to accompany the following scripts run for SCRAM 2.0.0:
+1. movement_model_report_addendum_feb2024_rekn.R
+2. movement_model_report_addendum_feb2024_pipl.R
+3. movement_model_report_addendum_feb2024_rost.R
+
+The SCRAM 2.0.0 Tool is described in the accompanying BOEM Report Addendum (Goyert et al. 2024).
+The SCRAM 1.0.3 Tool is described in the accompanying 2022 BOEM report (Adams et al. 2022).
+
+The scripts source the following shared functions (~/scripts/):
+1. remove_dup_bursts.R
+2. serial_time.R
+3. Pr_occupancy_season_trunc.R
+
+The Piping Plover (_pipl.R) and Roseate Tern (_rost.R) scripts additionally source the following shared functions (~/scripts/):
+1. false_pos_filter.R
+2. remove_false_pos.R
+
+The scripts source the following shared GIS data (~/data/):
+1. BOEM_halfdeg_grid_latlon_2021.shp contains georeferenced grid of 512 polygons on the Atlantic Outer Continental Shelf (other metadata no longer relevant)
+
+The Red Knot (_rekn.R) script additionally sources the following data from Loring et al. 2021(~/data/):
+1. Appendix_C_Motus_Detection_Data_REKN.rds
+
+The Piping Plover (_pipl.R) script additionally sources the following data from Loring et al. 2019 (~/data/):
+1. Appendix_H-Motus_Detection_Data_PIPL_2015.csv
+2. Appendix_H-Motus_Detection_Data_PIPL_2016.csv
+3. Appendix_H-Motus_Detection_Data_PIPL_2017.csv
+
+The Roseate Tern (_rost.R) script additionally sources the following data from Loring et al. 2019 (~/data/):
+1. Appendix_H-Motus_Detection_Data_ROST_2015_v20190708.csv
+2. Appendix_H-Motus_Detection_Data_ROST_2016_v20190708.csv
+3. Appendix_H-Motus_Detection_Data_ROST_2017_v20190708.csv
+
+References
+	Adams EM, Gilbert A, Loring P, Williams, KA 
+	(Biodiversity Research Institute, Portland, ME and U.S. Fish and Wildlife Service, Charlestown, RI). 
+	2022. Transparent Modeling of Collision Risk for Three Federally Listed Bird Species in Relation to 
+	Offshore Wind Energy Development: Final Report. 
+	Washington, DC: U.S. Department of the Interior, Bureau of Ocean Energy Management. 79 p. 
+	Report No.: OCS Study BOEM 2022-071. Contract No.: M19PG00023. Available at: https://espis.boem.gov/Final%20Reports/BOEM_2022-071.pdf 
+
+	Goyert HF, Adams EM, Gilbert A, Gulka J, Loring P, Williams, KA. 2024. 
+	Transparent Modeling of Collision Risk for Three Federally Listed Bird Species in Relation to 
+	Offshore Wind Energy Development: Report Addendum to Report No.: OCS Study BOEM 2022-07. 
+	Prepared by the Biodiversity Research Institute, Portland, ME and 
+	U.S. Fish and Wildlife Service, Charlestown, RI, for the 
+	U.S. Department of the Interior, Bureau of Ocean Energy Management, Washington, DC. 
+	Contract No.: M19PG00023. Available at https://briwildlife.org/SCRAM/.
+
+	Loring P, Paton P, McLaren J, Bai H, Janaswamy R, Goyert H, Griffin C, Sievert P. 2019. 
+	Tracking Offshore Occurrence of Common Terns, Endangered Roseate Terns, and Threatened Piping Plovers with VHF Arrays. 
+	OCS Study BOEM 2019-017. US Department of the Interior, Bureau of Ocean Energy Management, Sterling, Virginia. 
+	140 p + appendices. Available at:
+	https://espis.boem.gov/final%20reports/BOEM_2019-017.pdf (report)
+	https://espis.boem.gov/final%20reports/BOEM_2019-017a.pdf (appendices)
+
+	Loring PH, Lenske AK, McLaren JD, Aikens M, Anderson AM, Aubrey Y, Dalton E, Dey A, Friis C, Hamilton D, Holberton B. 2021. 
+	Tracking Movements of Migratory Shorebirds in the US Atlantic Outer Continental Shelf Region. 
+	Sterling (VA): US Department of the Interior, Bureau of Ocean Energy Management. OCS Study BOEM, 8, 104. Available at:
+	https://www.boem.gov/sites/default/files/documents/renewable-energy/studies/Tracking-Migratory-Shorebirds-Atlantic-OCS.pdf
