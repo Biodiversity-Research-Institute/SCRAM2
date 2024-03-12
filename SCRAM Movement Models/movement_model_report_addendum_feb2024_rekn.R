@@ -366,7 +366,7 @@ inits <- list(list(gamma=c(0.5), D=c(0,0), sd=0.01, x.sd=0.01), # #D=c(0) #sd=0.
               list(gamma=c(0.5), D=c(0,0), sd=0.01, x.sd=0.01)) # #1-state
 str(jags.data <- list(Xidx=Xidx, Xidx2=Xidx2, Yidx=Yidx, y=as.matrix(y), idx=idx, N=N))
 
-parameters <- c("gamma", "Sigma", "D", "x", 'tau', 'x.tau') #, 'sigma_c', 'Rho' #1-state removes "b", "phi", adds adds ('sd',) 'sigma_c', 'Rho'
+parameters <- c("gamma", "Sigma", "D", "x", 'tau', 'x.tau') #1-state removes "b", "phi", adds "Sigma"
 
 #(.packages()) #list loaded libraries
 library(dclone)
