@@ -16,7 +16,7 @@
 # ## hierarchical (to estimate parameters jointly across multiple individual tracking datasets)
 # ## Discrete-time, continuous-space, Correlated Random Walk (DCRW for location filtering)
 # ## with a Spatial measurement-error observation model (DCRWS for location filtering and behavioural state estimation)
-# ## - includes random deviate from hDCRWS to force gamma[1] > gamma[2] since b=1 is migratory with high correlation between subsequent movements and b=2 is staging with low correlation
+# ## - includes random deviate from hDCRWS to force gamma[1] > gamma[2] since b=1 is migratory with high correlation between subsequent movements and b=2 is staging with low correlation (2-state only)
 # ## - excludes Drift and relaxes assumption of covariance among error terms to independent normal variance for observed and estimated locations
 # ## - for Red Knots, retains only fall (southbound) migratory movements consistent with Loring et al. 2021, since birds tagged mid-spring migration in Delaware Bay, after crossing Atlantic OCS
 # ## - predicts all species only to study area containing active stations during study period (as USFWS recommended)
