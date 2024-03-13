@@ -359,11 +359,12 @@ MOVE <- function(){
   if (is.R()){
     filename <- file.path(dir.out, "MOVE.bug")} #removes comments from file
 write.model(MOVE, filename)
-# inits <- list(list(gamma=c(0.5, 0.5), x=x, D=matrix(c(0, 0, 0, 0), 2, 2), sigma_c=array(c(0.1, NA, NA, 0.1, 0.1, NA, NA, 0.1), c(2, 2, 2)), phi=0.1, sd=0.01, #sd=0.000001 #removes sd prior (now a constant)
-                   # Rho=array(c(NA, NA, 0.01, NA, NA, NA, 0.01, NA), c(2, 2, 2))), #2-state
+
+
 inits <- list(list(gamma=c(0.5), D=c(0,0), sd=0.01, x.sd=0.01), # #D=c(0) #sd=0.000001, removes sd prior (now a constant)
               list(gamma=c(0.5), D=c(0,0), sd=0.01, x.sd=0.01), # #1-state
               list(gamma=c(0.5), D=c(0,0), sd=0.01, x.sd=0.01)) # #1-state
+
 str(jags.data <- list(Xidx=Xidx, Xidx2=Xidx2, Yidx=Yidx, y=as.matrix(y), idx=idx, N=N))
 
 parameters <- c("gamma", "Sigma", "D", "x", 'tau', 'x.tau') #1-state removes "b", "phi", adds "Sigma"
