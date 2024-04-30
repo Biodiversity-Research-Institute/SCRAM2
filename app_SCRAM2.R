@@ -42,8 +42,9 @@
 # 17 Aug 23 - 2.0 - modify SCRAM to use StochLab package and it's functions for calculating crm modified to accept annex 6 migrant flux calculations based on movement data; Also now using RPM data vs. wind speed data in the calcs requiring changing the example input files
 # 16 Nov 23 - updated species popn data to harmonize between Band 2012 Annex 6 and SCRAM
 # 09 Jan 2023 Added update models with additional tags under vers 2.0 to include additional tags not available for version 1. 
-# 19 Jan 2024 - 2.0.1 - discovered an issue where the proportions within flight bands were not being accurately accounted for when you had a fhd that was not smooth. This led to discovery of fixed yinc values within get_collisions_extended function of stochLAB. Created our own version to account for changing yinc values. Other minor bug fixes with reporting. Added basic avoidance values.
-#06 Feb 2024 - 2.0.2 - in some cases, with PIPL output is very skewed by small number of very large collision esimates which leads to means falling outside of 95% range suggesting not appropriate to use mean as central tendency, changed to providing median. Also added an input file check to see if csv and had correct headers.
+# 19 Jan 24 - 2.0.1 - discovered an issue where the proportions within flight bands were not being accurately accounted for when you had a fhd that was not smooth. This led to discovery of fixed yinc values within get_collisions_extended function of stochLAB. Created our own version to account for changing yinc values. Other minor bug fixes with reporting. Added basic avoidance values.
+# 06 Feb 24 - 2.0.2 - in some cases, with PIPL output is very skewed by small number of very large collision esimates which leads to means falling outside of 95% range suggesting not appropriate to use mean as central tendency, changed to providing median. Also added an input file check to see if csv and had correct headers.
+# 28 Apr 24 - 2.0.3 - fix some report issues and also address results figure not changing between runs
 
 # load scripts
 source("scripts/helpers.R")
@@ -60,7 +61,8 @@ source("scripts/get_prop_crh_fhd_SCRAM.R")
 # SCRAM_version = "1.0.3 - Cathartic Adela" 
 # "2.0.0 - Altruistic Anaheim"
 # "2.0.1 - Bombastic Anaheim" 
-SCRAM_version = "2.0.2 - Crooning Anaheim"   #https://www.cayennediane.com/big-list-of-hot-peppers/
+# "2.0.2 - Crooning Anaheim"
+SCRAM_version = "2.0.3 - Diplomatic Anaheim"   #https://www.cayennediane.com/big-list-of-hot-peppers/
 
 options(shiny.trace = F)
 
@@ -1224,6 +1226,7 @@ server <- function(input, output, session) {
     movement_model_post <- read.csv(unz(paste0("data/movements/", input$species_input, "_movements_", species_params_vals$model_input_dist_type, ".zip"), 
                                                                             paste0("MovementBaked_", tolower(spp_code), "_", species_params_vals$model_input_dist_type, "_", windfarm_loc$cell_sf$id, ".csv")), header=T)
     
+    #initialize dataframes for storing values
     bird_dens <- data.frame(i=1:length(movement_model_post[,1]))
     num_birds_cell_perday <- data.frame(i=1:length(movement_model_post[,1]))
 
@@ -1263,7 +1266,9 @@ server <- function(input, output, session) {
     req(nrow(popn_data_vals$spp_popn_mean) > 0 & input$migration_calc_type == "band_2012_annex_6" & 
           !is.null(input$species_input) & annex6_vals$migr_front_km > 0)
     
+    #initialize dataframes for storing values
     bird_dens <- data.frame(i=1:1000)
+    num_birds_cell_perday <- data.frame(i=1:1000)
 
     #Sample counts each month as tnormal and combine with movment draw - resample 1000 times to create
     #a resample matrix of monthly density (birds/km) which can be resampled in stoch_crm
@@ -1279,7 +1284,12 @@ server <- function(input, output, session) {
       
       bird_dens[[m]] <- popn_samples / as.numeric(annex6_vals$migr_front_km)  #birds/km
       
+      num_birds_cell_perday[[m]] <-  bird_dens[[m]] * sqrt(windfarm_loc$cell_sf$area)  
+        monthDays(as.Date(paste0("01/", str_pad(i, width = 2, side = "left", pad = "0"), "/2023")))
+      
     }
+    
+    bird_flux_vals$num_birds_cell_perday <- as.data.frame(num_birds_cell_perday)
     
     #remove index field for input to model
     bird_dens <- bird_dens %>% 
@@ -1675,7 +1685,7 @@ server <- function(input, output, session) {
   })
 
   # main plot for annual cumulative collision estimation
-  results_plots <- eventReactive(stoch_SCRAM_out, {
+  results_plots <- eventReactive(stoch_SCRAM_out(), {
     
     num_species <- length(stoch_SCRAM_out())
     num_turb_mods <- length(stoch_SCRAM_out()[[1]])
@@ -1769,8 +1779,6 @@ server <- function(input, output, session) {
               ) +
               ggtitle(main_label) +
               scale_x_continuous(breaks = scales::pretty_breaks()) +
-              # xlim(c(plot_xmin, plot_xmax)) +
-              # ylim(c(plot_ymin, plot_ymax)) +
               xlab("Total collisions per year over months highlighted below") +
               ylab("Frequency") +
               annotate("text",
@@ -1797,8 +1805,8 @@ server <- function(input, output, session) {
               cowplot::ggdraw(
                 cowplot::add_sub(
                   p1,
-                  label = month.abb,
-                  x = seq(0.1, 0.9, 0.8 / 11),
+                  label = c("Month", month.abb),
+                  x = c(0, seq(0.1,0.9,0.8/11)),
                   color = month_col,
                   size = 10,
                   fontface = bold
@@ -1881,14 +1889,14 @@ server <- function(input, output, session) {
       # copy the report file to a temporary directory before processing it, in
       # case we don't have write permissions to the current working dir (which
       # can happen when deployed).
-      tempReport <- file.path(tempdir(), "report_SCRAM2_v020624.Rmd") #report_SCRAM2_v081823.Rmd
+      tempReport <- file.path(tempdir(), "report_SCRAM2_v042924.Rmd") 
       img1 <- file.path(tempdir(), "SCRAM_logo_2_4inch.jpg")
       img2 <- file.path(tempdir(), "BRI_color_logo_no_words.png")
       img3 <- file.path(tempdir(), "URI.png")
       img4 <- file.path(tempdir(), "USFWS.png")
       img5 <- file.path(tempdir(), "BOEM.png")
 
-      file.copy("scripts/report_SCRAM2_v020624.Rmd", tempReport, overwrite = TRUE) #report_SCRAM2_v081823.Rmd
+      file.copy("scripts/report_SCRAM2_v042924.Rmd", tempReport, overwrite = TRUE) 
       # need to copy images to temp dir otherwise can't be found
       # see: (https://stackoverflow.com/questions/35800883/using-image-in-r-markdown-report-downloaded-from-shiny-app?rq=1)
       file.copy("www/SCRAM_logo_2_4inch.jpg", img1, overwrite = TRUE)
@@ -1946,7 +1954,7 @@ server <- function(input, output, session) {
           model_cell = isolate(windfarm_loc$cell_sf),
           # trans_prop = "",
           model_output = isolate(stoch_SCRAM_out()),
-          daily_cell_flux = "",
+          daily_cell_flux = isolate(bird_flux_vals$num_birds_cell_perday),
           spp_move_data_summary = "",
           prob_exceed = isolate(prob_exceed_threshold()),
           species_labels = SpeciesLabels,
@@ -2005,7 +2013,7 @@ server <- function(input, output, session) {
             pred_monthly_coll <- model_output$collisions[[1]]
             colnames(pred_monthly_coll) <- paste0("crm_pred_", month.abb)
             pred_monthly_coll <- cbind(run=1:iter_slider_react(), pred_monthly_coll)
-            write.csv(pred_monthly_coll, file = paste0(tmpdir, "/SCRAM2_crm_pred_monthly_coll_opt", model_option,  "_", species, "_", turbine_type,".csv"), row.names = FALSE)
+            write.csv(pred_monthly_coll, file = file.path(tmpdir, paste0("SCRAM2_crm_pred_monthly_coll_opt", model_option,  "_", species, "_", turbine_type,".csv")), row.names = FALSE)
             
             #process sampled paramaters (turbine and bird) as outputted by stochCRM function
             sampled_pars <- model_output$sampled_pars
@@ -2016,7 +2024,7 @@ server <- function(input, output, session) {
               mutate(turbine_parameter = row.names(.)) %>% 
               select(turbine_parameter, mean, sd, median, pctl_2.5, pctl_97.5)
             
-            write.csv(turbine_pars_1by5_df, file = paste0(tmpdir, "/SCRAM2_sampled_turbine_pars_1_opt", model_option,  "_", species, "_", turbine_type,".csv"), row.names = FALSE)
+            write.csv(turbine_pars_1by5_df, file = file.path(tmpdir, paste0("SCRAM2_sampled_turbine_pars_1_opt", model_option,  "_", species, "_", turbine_type,".csv")), row.names = FALSE)
             
             turbine_pars_12by6_list <- sampled_pars[c("prop_oper_mth", "downtime")]
             
@@ -2024,7 +2032,7 @@ server <- function(input, output, session) {
               mutate(turbine_parameter = row.names(.)) %>% 
               select(turbine_parameter, mean, sd, median, pctl_2.5, pctl_97.5)
             
-            write.csv(turbine_pars_12by6_df, file = paste0(tmpdir, "/SCRAM2_sampled_turbine_pars_2_opt", model_option,  "_", species, "_", turbine_type,".csv"), row.names = FALSE)
+            write.csv(turbine_pars_12by6_df, file = file.path(tmpdir, paste0("SCRAM2_sampled_turbine_pars_2_opt", model_option,  "_", species, "_", turbine_type,".csv")), row.names = FALSE)
 
             if(model_option == "2") {
               bird_pars_1by5_list <- sampled_pars[c("body_lt", "flt_speed", "noct_actv", "wing_span", "avoid_bsc")]
@@ -2036,29 +2044,33 @@ server <- function(input, output, session) {
               mutate(bird_parameter = row.names(.)) %>% 
               select(bird_parameter, mean, sd, median, pctl_2.5, pctl_97.5)
             
-            write.csv(bird_pars_1by5_df, file = paste0(tmpdir, "/SCRAM2_sampled_bird_pars_opt", model_option,  "_", species, "_", turbine_type,".csv"), row.names = FALSE)
+            write.csv(bird_pars_1by5_df, file = file.path(tmpdir, paste0("SCRAM2_sampled_bird_pars_opt", model_option,  "_", species, "_", turbine_type,".csv")), row.names = FALSE)
             
             #compress files for uploading the wind farm specific data
-            fnames4zip1 <- c(fnames4zip1, paste0(tmpdir, "/SCRAM2_crm_pred_monthly_coll_opt", model_option,  "_", species, "_", turbine_type,".csv"))
-            fnames4zip1 <- c(fnames4zip1, paste0(tmpdir, "/SCRAM2_sampled_turbine_pars_1_opt", model_option,  "_", species, "_", turbine_type,".csv"))
-            fnames4zip1 <- c(fnames4zip1, paste0(tmpdir, "/SCRAM2_sampled_turbine_pars_2_opt", model_option,  "_", species, "_", turbine_type,".csv"))
-            fnames4zip1 <- c(fnames4zip1, paste0(tmpdir, "/SCRAM2_sampled_bird_pars_opt", model_option,  "_", species, "_", turbine_type,".csv"))
+            fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0("SCRAM2_crm_pred_monthly_coll_opt", model_option,  "_", species, "_", turbine_type,".csv")))
+            fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0("SCRAM2_sampled_turbine_pars_1_opt", model_option,  "_", species, "_", turbine_type,".csv")))
+            fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0("SCRAM2_sampled_turbine_pars_2_opt", model_option,  "_", species, "_", turbine_type,".csv")))
+            fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0("SCRAM2_sampled_bird_pars_opt", model_option,  "_", species, "_", turbine_type,".csv")))
             
           } #turbine model loop
           
           #write species specific data
-          write.csv(popn_data[which(popn_data$Species==species),], file = paste0(tmpdir, "/SCRAM_", species, "_popn_data.csv"), row.names = FALSE)
-          write.csv(bird_data[which(bird_data$Species==species),], file = paste0(tmpdir, "/SCRAM_", species, "_character_data.csv"), row.names = FALSE)
-          write.csv(bird_flux_vals$num_birds_cell_perday, file = paste0(tmpdir, "/SCRAM2_num_birds_cell_perday_opt", model_option,  "_", species,".csv"), row.names = FALSE)
-
-          fnames4zip1 <- c(fnames4zip1, paste0(tmpdir, "/SCRAM_", species, "_popn_data.csv"))
-          fnames4zip1 <- c(fnames4zip1, paste0(tmpdir, "/SCRAM_", species, "_character_data.csv"))
-          fnames4zip1 <- c(fnames4zip1, paste0("data/", species, "_ht_dflt_v2.csv"))
-          fnames4zip1 <- c(fnames4zip1, paste0("data/movements/", species, "_movements_", model_output$model_type, ".zip"))
+          write.csv(popn_data[which(popn_data$Species==species),], file = file.path(tmpdir, paste0("SCRAM2_", species, "_popn_data.csv")), row.names = FALSE)
+          fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0("SCRAM2_", species, "_popn_data.csv")))
+          
+          write.csv(bird_data[which(bird_data$Species==species),], file = file.path(tmpdir, paste0("SCRAM2_", species, "_character_data.csv")), row.names = FALSE)
+          fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0("SCRAM2_", species, "_character_data.csv")))
+          
+          file.copy(from = file.path("data",  paste0(species, "_ht_dflt_v2.csv")), to = file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
+          fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
+          
+          #include occupency model if that calc type
+          if(input$migration_calc_type == "occup_model") {
+            file.copy(from = file.path("data", "movements", paste0(species, "_movements_", model_output$model_type, ".zip")), to = file.path(tmpdir, paste0(species, "_movements_", model_output$model_type, ".zip")))
+            fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_movements_", model_output$model_type, ".zip")))
+          }
           
         } #spp model loop
-        
-        file.copy(input$file_wf_param$datapath, to = file.path(tmpdir, input$file_wf_param$name))
         
         # set up parameters to pass to Rmd document
         if(input$migration_calc_type == "occup_model") {
@@ -2083,8 +2095,6 @@ server <- function(input, output, session) {
             species_popn_data = isolate(popn_data_vals$spp_popn_data),
             species_popn_assumptions = isolate(spp_popn_notes())
           )
-          #add the number bird cell per day only if occupancy model, doesn't apply to Annex 6
-          fnames4zip1 <- c(fnames4zip1, paste0(tmpdir, "/SCRAM2_num_birds_cell_perday_opt", model_option,  "_", species,".csv"))
         } else { #annex 6
           scram_params <- list(
             SCRAM_version = SCRAM_version,
@@ -2100,18 +2110,25 @@ server <- function(input, output, session) {
             model_option = input$crm_option_radio,
             model_cell = isolate(windfarm_loc$cell_sf),
             model_output = isolate(stoch_SCRAM_out()),
+            daily_cell_flux = isolate(bird_flux_vals$num_birds_cell_perday),
             prob_exceed = isolate(prob_exceed_threshold()),
             species_labels = SpeciesLabels,
             species_popn_data = isolate(annex6_vals$spp_popn_data),
             species_popn_assumptions = isolate(spp_popn_notes()))
         }
+        
+        write.csv(isolate(bird_flux_vals$num_birds_cell_perday), file = file.path(tmpdir, paste0("SCRAM2_num_birds_cell_perday_opt", model_option, "_", species,".csv")), row.names = FALSE)
+        fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0("SCRAM2_num_birds_cell_perday_opt", model_option, "_", species,".csv")))
+        
         save(scram_params, file = file.path(tmpdir, paste0('SCRAM2_model_pars_output_', strftime(isolate(run_times$end), "%Y%m%d_%H%M%S"),'.RData')))
-
-        #add additional files for compressing
-        fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, input$file_wf_param$name))
         fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0('SCRAM2_model_pars_output_', strftime(isolate(run_times$end), "%Y%m%d_%H%M%S"),'.RData')))
         
-        utils::zip(zipfile=fname, files=unlist(c(fnames4zip1)), flags = "-r9Xj")
+        #add additional files for compressing
+        file.copy(input$file_wf_param$datapath, to = file.path(tmpdir, input$file_wf_param$name))
+        fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, input$file_wf_param$name))
+        
+        # utils::zip(zipfile=fname, files=unlist(c(fnames4zip1)), flags = "-r9Xj")
+        zip::zip(zipfile=fname, files = unlist(c(fnames4zip1)), include_directories = F, mode = "cherry-pick", root = tmpdir)
         
       },
       contentType = "application/zip"

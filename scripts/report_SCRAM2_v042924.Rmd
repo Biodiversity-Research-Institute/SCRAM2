@@ -48,8 +48,7 @@ header-includes:
 - \fancyfoot[LE,RO]{\thepage\ of \pageref{LastPage}}
 ---
 
-  <!-- header-includes required because won't re-run after first report download -->
-<!-- Fix: https://stackoverflow.com/questions/46080853/why-does-rendering-a-pdf-from-rmarkdown-require-closing-rstudio-between-renders/46083308#46083308 -->
+<!-- Modified: 29 Apr 24 - fixed annual estimate in final figure to be median and minor caption changes -->
 
 ```{r setup, include=FALSE}
 library(knitr)
@@ -400,7 +399,18 @@ kbl(turb_params_table_pt2, booktabs=T, caption = "Monthly (Jul-Dec) wind farm op
 <br>
 <br>
 
-```{r, fig1, fig.height = 7.5, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = "A map of the mean monthly species occurrence probabities (i.e., the mean of all summed daily occurrence probabilities across all months) and wind farm location. Collision estimates use summed daily occurrence probability rather than  these values as shown; the values in this figure are presented for display purposes only to show relative differences in occurrence across the area of interest.", fig.pos="t"}
+```{r, echo=FALSE}
+
+if (params$migration_calc_type == "occup_model") {
+ fig1_cap_txt <- "A map of the mean monthly species occurrence probabities (i.e., the mean of all summed daily occurrence probabilities across all months) and wind farm location used for SCRAM V2 occupancy modeling calculations. Collision estimates use summed daily occurrence probability rather than these values as shown; the values in this figure are presented for display purposes only to show relative differences in occurrence across the area of interest."
+} else {
+ fig1_cap_txt <- "A map of the  wind farm location and migratory front used for SCRAM V2 Band Annex 6 calculations. Species density (birds/km) along the front is calculated as the number of migrating animals in a month divided by the length of the migratory front (km)."
+}
+
+```
+
+
+```{r, fig1, fig.height = 7.5, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = fig1_cap_txt, fig.pos="t"}
 
 
 wf_loc <- params$model_output[[1]][[1]][c("lat", "long")] 
@@ -413,14 +423,12 @@ quants <- function(val) {
   #issue with zero inflated bins - need to generate non-zero quants
   non_zero_mean <- val[val>0]
   mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7), na.rm = T))
-  # mean_bins <- quantile(val, probs=seq(0,1,1/8))
   return(cut(val, mean_bins, labels = F, include.lowest = T, right = F))
 }
 
 quants_labels <- function(val) {
   non_zero_mean <- val[val>0]
   mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7), na.rm = T))
-  # mean_bins <- quantile(val, probs=seq(0,1,1/8))
   return(cut(val, mean_bins, ordered_result=T, include.lowest = T, right = F))
 }
 
@@ -503,7 +511,7 @@ cat('\n\n\n\n')
 ``` {r, table_out_1, echo=FALSE, warning=FALSE, message = FALSE,  results = "asis"}
 
 #print this table only if the calcs using the occupancy occup_model
-if(params$migration_calc_type == "occup_model") {
+# if(params$migration_calc_type == "occup_model") {
   model_summary_out <- data.frame()
   
   for(s in 1:num_species){
@@ -514,8 +522,6 @@ if(params$migration_calc_type == "occup_model") {
     for(t in 1:num_turb_mods){
       model_out <- params$model_output[[s]][[t]]
 
-      # spp_daily_cell_count <- params$daily_cell_flux[[1]] %>% 
-      #   dplyr::select(-c("i"))
       spp_daily_cell_count <- params$daily_cell_flux %>% 
         dplyr::select(-c("i"))
       
@@ -524,18 +530,15 @@ if(params$migration_calc_type == "occup_model") {
         dplyr::rename(month=variable) %>% 
         as.data.frame()
       
-      #calculate mean and 95% CI
+      #calculate median and 95% CI
       
       daily_cell_summary <- spp_daily_cell_count_melt %>%
         dplyr::group_by(species, turbine_model, month) %>%
-        # dplyr::summarise(mean = formatC(mean(daily_cell_count, na.rm = T), digits=3, format="g"),
-        dplyr::summarise(median = formatC(median(daily_cell_count, na.rm = T), digits=3, format="g"),
-                         lower = formatC(quantile(daily_cell_count, c(0.025), na.rm=T), digits=3, format="g"),
-                         upper = formatC(quantile(daily_cell_count, c(0.975), na.rm=T), digits=3, format="g")) %>%
-        # dplyr::mutate(turbine = sub("turbModel", "", turbine_model)) %>%
+        dplyr::summarise(median = formatC(median(daily_cell_count, na.rm = T), digits=4, format="g"),
+                         lower = formatC(quantile(daily_cell_count, c(0.025), na.rm=T), digits=4, format="g"),
+                         upper = formatC(quantile(daily_cell_count, c(0.975), na.rm=T), digits=4, format="g")) %>%
         dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
         dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
-        # dplyr::mutate(month = as.character(month), population = popn_col[,1],`Est. daily num. of animals in the model cell` = paste0(mean, " (", lower, ", ", upper, ")")) %>%
         dplyr::mutate(month = as.character(month), population = popn_col[,1],`Est. daily num. of animals in the model cell` = paste0(median, " (", lower, ", ", upper, ")")) %>%
 
         dplyr::mutate_if(is.character, str_replace, pattern = "  \\(  ,   \\)", replacement = "")
@@ -552,16 +555,14 @@ if(params$migration_calc_type == "occup_model") {
         dplyr::rename("iter"="Var1", "month"="Var2") %>% 
         as.data.frame()
       
-      #calculate mean and 95% CI for daily collisions
+      #calculate median and 95% CI for daily collisions
       daily_collisions_summary <- daily_collisions_melt %>%
         dplyr::group_by(species, turbine_model, month) %>%
-        # dplyr::summarise(mean = formatC(mean(coll_rate, na.rm = T), digits=3, format="g"),
-        dplyr::summarise(median = formatC(median(coll_rate, na.rm = T), digits=3, format="g"),
-                         lower = formatC(quantile(coll_rate, c(0.025), na.rm=TRUE), digits=3, format="g"),
-                         upper = formatC(quantile(coll_rate, c(0.975), na.rm=TRUE), digits=3, format="g")) %>%
+        dplyr::summarise(median = formatC(median(coll_rate, na.rm = T), digits=4, format="g"),
+                         lower = formatC(quantile(coll_rate, c(0.025), na.rm=TRUE), digits=4, format="g"),
+                         upper = formatC(quantile(coll_rate, c(0.975), na.rm=TRUE), digits=4, format="g")) %>%
         dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
         dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
-        # dplyr::mutate(month = as.character(month), `Est. daily num. of collisions in the wind farm` = paste0(mean, " (", lower, ", ", upper, ")")) %>%
         dplyr::mutate(month = as.character(month), `Est. daily num. of collisions in the wind farm` = paste0(median, " (", lower, ", ", upper, ")")) %>%
         dplyr::mutate_if(is.character, str_replace, pattern = "  \\(  ,   \\)", replacement = "")
       
@@ -577,8 +578,13 @@ if(params$migration_calc_type == "occup_model") {
   colnames(model_summary_out) <- c("Species", "Turbine model", "Month", "Population estimate","Est. daily num. of animals in the model cell",
                                    "Est. daily num. of collisions in the wind farm")
   
-  kbl(model_summary_out, booktabs=T, align = "lcccc", digits = 32,
-      caption = "The populations estimate for each month and the median estimated daily number of (95 perc. prediction intervals) animals in the model cell and collisions at the wind farm. Results are not shown for months that do not have movement data. This does not mean that collisions could not occur in those months, but we do not have movement data to estimate collisions during these periods.") %>%
+  if (params$migration_calc_type == "occup_model") {
+ tbl_cap_txt <- "The populations estimate for each month and the median estimated daily number of (95 perc. prediction intervals) animals in the model cell and collisions at the wind farm using SCRAM V2 occupancy modeling calculations. Results are not shown for months that do not have movement data. This does not mean that collisions could not occur in those months, but we do not have movement data to estimate collisions during these periods."
+} else {
+ tbl_cap_txt <- "The populations estimate for each month and the median estimated daily number of (95 perc. prediction intervals) animals in the model cell and collisions at the wind farm using SCRAM V2 Band Annex 6 calculations."
+}
+  
+  kbl(model_summary_out, booktabs=T, align = "lcccc", digits = 32, caption = tbl_cap_txt) %>%
     kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>%
     row_spec(0,bold=T, extra_css = "vertical-align:text-bottom !important;") %>%
     column_spec(1,bold=T,color="red", width = "1.25in") %>%
@@ -586,7 +592,7 @@ if(params$migration_calc_type == "occup_model") {
     column_spec(3,bold=T,color="purple",width = "0.5in") %>%
     column_spec(4,bold=T,width = "0.75in") %>%
     column_spec(5:6,width = "1.375in", extra_css = "horizontal-align:center;")
-}
+# }
 
 
 ```
@@ -615,31 +621,28 @@ for(s in 1:num_species){
   }
 }
 
-#calculate mean and 95% CI  
+#calculate median and 95% CI  
 monthly_summary <- model_out_melt %>% 
   dplyr::group_by(species, turbine_model, month) %>% 
-  # dplyr::summarise(mean = formatC(mean(coll_rate, na.rm = T),digits=3, format="g"), 
-  dplyr::summarise(median = formatC(median(coll_rate, na.rm = T), digits=3, format="g"), 
-                   lower = formatC(quantile(coll_rate, c(0.025), na.rm=TRUE), digits=3, format="g"),
-                   upper = formatC(quantile(coll_rate, c(0.975), na.rm=TRUE), digits=3, format="g")) %>% 
+  dplyr::summarise(median = formatC(median(coll_rate, na.rm = T), digits=4, format="g"), 
+                   lower = formatC(quantile(coll_rate, c(0.025), na.rm=TRUE), digits=4, format="g"),
+                   upper = formatC(quantile(coll_rate, c(0.975), na.rm=TRUE), digits=4, format="g")) %>% 
   dplyr::mutate(turbine_model = sub("turbModel", "", turbine_model)) %>% 
   dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
   dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
-  # dplyr::mutate(month = as.character(month), `Est. num. of collisions` = paste0(mean, " (", lower, ", ", upper, ")")) %>% 
   dplyr::mutate(month = as.character(month), `Est. num. of collisions` = paste0(median, " (", lower, ", ", upper, ")")) %>% 
   dplyr::mutate_if(is.character, str_replace, pattern = " \\(  ,   \\)", replacement = "")
 
-#calculate annual summary of model runs, mean of sum of posteriors and then quantiles of these sums for predict interval
+#calculate annual summary of model runs, median of sum of posteriors and then quantiles of these sums for predict interval
 annual_sum <- model_out_melt %>% 
   dplyr::group_by(species, turbine_model, iter) %>% 
   dplyr::summarise(sum_monthly = sum(coll_rate, na.rm = T)) #%>% 
 
 annual_rate <- annual_sum %>% 
   dplyr::group_by(species, turbine_model) %>% 
-  # dplyr::summarise(mean = formatC(mean(sum_monthly, na.rm = T),digits=3, format="g"), 
-  dplyr::summarise(median = formatC(median(sum_monthly, na.rm = T),digits=3, format="g"), 
-                   lower = formatC(quantile(sum_monthly, c(0.025), na.rm=TRUE), digits=3, format="g"),
-                   upper = formatC(quantile(sum_monthly, c(0.975), na.rm=TRUE), digits=3, format="g"))  %>% 
+  dplyr::summarise(median = formatC(median(sum_monthly, na.rm = T),digits=4, format="g"), 
+                   lower = formatC(quantile(sum_monthly, c(0.025), na.rm=TRUE), digits=4, format="g"),
+                   upper = formatC(quantile(sum_monthly, c(0.975), na.rm=TRUE), digits=4, format="g"))  %>% 
   dplyr::mutate(turbine_model = sub("turbModel", "", turbine_model)) %>% 
   dplyr::mutate_if(is.character, str_replace, pattern = "NaN", replacement = "") %>%
   dplyr::mutate_if(is.character, str_replace, pattern = "NA", replacement = "") %>%
@@ -653,8 +656,14 @@ annual_summary <- as.data.frame(rbind(monthly_summary[, c("species", "turbine_mo
 annual_summary$species <- gsub("_", " ", annual_summary$species)
 colnames(annual_summary) <- c("Species", "Turbine model", "month", "Est. num. of collisions")
 
+if (params$migration_calc_type == "occup_model") {
+ tbl_cap_txt <- "The estimated monthly median number (95 perc. prediction intervals) of collisions using SCRAM V2 occupancy modeling calculations. Results are not shown for months that do not have movement data and does not mean that collisions could not occur in those months."
+} else {
+ tbl_cap_txt <- "The estimated monthly median number (95 perc. prediction intervals) of collisions using SCRAM V2 Band Annex 6 calculations."
+}
+
 kbl(annual_summary, booktabs=T, align = "lccc", digits = 32,
-    caption = "The estimated monthly median number (95 perc. prediction intervals) of collisions. Results are not shown for months that do not have movement data and does not mean that collisions could not occur in those months.") %>%
+    caption = tbl_cap_txt) %>%
   kable_styling(position="left", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
   row_spec(0,bold=T, extra_css = "vertical-align:text-bottom !important;") %>% 
   column_spec(1,bold=T,color="red", width = "1.25in") %>% 
@@ -668,7 +677,17 @@ kbl(annual_summary, booktabs=T, align = "lccc", digits = 32,
 <br>
 <br>
 
-```{r, fig2, fig.height = 4, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = "A frequency histogram of the total number of collisions per year. The heights of the bars show the relative frequency of each value. Months for which movement data were provided or available are shown in bold; only bold months are shown in histogram of annual collisions.", fig.pos="t"}
+```{r, echo=FALSE}
+
+if (params$migration_calc_type == "occup_model") {
+ fig2_cap_txt <- "A frequency histogram of the total number of collisions per year determined using SCRAM V2 occupancy modeling calculations. The heights of the bars show the relative frequency of each value. Months for which movement data were provided or available are shown in bold; only bold months are shown in histogram of annual collisions."
+} else {
+ fig2_cap_txt <- "A frequency histogram of the total number of collisions per year determined using SCRAM V2 Band Annex 6 calculations. The heights of the bars show the relative frequency of each value. Months for which movement data were provided or available are shown in bold; only bold months are shown in histogram of annual collisions."
+}
+
+```
+
+```{r, fig2, fig.height = 4, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = fig2_cap_txt, fig.pos="t"}
 
 nbins = 20
 
@@ -747,7 +766,7 @@ for(s in 1:num_species){
         annotate("text", x=params$threshold, y=plot_ymax*0.5, col="red", label = "Input threshold", angle=90, vjust=-0.75) +
         theme_classic()
       
-      p2 <- cowplot::ggdraw(cowplot::add_sub(p1, label = month.abb, x=seq(0.1,0.9,0.8/11), color = month_col, size = 8, fontface = bold))
+      p2 <- cowplot::ggdraw(cowplot::add_sub(p1, label = c("Month", month.abb), x= c(0, seq(0.1,0.9,0.8/11)), color = month_col, size = 8, fontface = bold))
       print(p2)
       
       #There needs to be spaces between plots in R Markdown if they are to be given their own caption
@@ -764,8 +783,17 @@ for(s in 1:num_species){
 <br>
 <br>
 
+```{r, echo=FALSE}
 
-```{r, fig3, fig.height = 4, echo=FALSE, warning=FALSE, message = FALSE, fig.cap="The predicted median and 95 perc. prediction intervals of the number of collisions per month. Results are not shown for months that do not have movement data. Total annual collision rate and 95 perc. prediction interval are given at top. The threshold is shown divided by the number of months that movement data were available."}
+if (params$migration_calc_type == "occup_model") {
+ fig3_cap_txt <- "The predicted median and 95 perc. prediction intervals of the number of collisions per month using SCRAM V2 occupancy modeling calculations. Results are not shown for months that do not have movement data. Total annual collision rate and 95 perc. prediction interval are given at top. The threshold is shown divided by the number of months that movement data were available."
+} else {
+ fig3_cap_txt <- "The predicted median and 95 perc. prediction intervals of the number of collisions per month using SCRAM V2 Band Annex 6 calculations. Total annual median collision rate and 95 perc. prediction interval are given at top. The threshold is shown divided by the number of months that movement data were available."
+}
+
+```
+
+```{r, fig3, fig.height = 4, echo=FALSE, warning=FALSE, message = FALSE, fig.cap=fig3_cap_txt} 
 
 for(s in 1:num_species){
   for(t in 1:num_turb_mods){
@@ -803,21 +831,20 @@ for(s in 1:num_species){
     #   dplyr::rename("month"="variable")
     # model_out_melt$iter <- rep(seq(1:length(model_out$Jan)), 12)
     
-    #calculate mean and 95% CI  
+    #calculate median and 95% CI  
     model_summary <- monthly_collisions_melt %>% 
       dplyr::group_by(month) %>% 
-      # dplyr::summarise(mean_coll_rate = mean(coll_rate, na.rm = T), 
       dplyr::summarise(median_coll_rate = median(coll_rate, na.rm = T), 
                        lower_coll_rate = quantile(coll_rate, c(0.025), na.rm=TRUE),
                        upper_coll_rate = quantile(coll_rate, c(0.975), na.rm=TRUE))
     
-    #calculate annual summary of model runs, mean of sum of posteriors and then quantiles of these sums for predict interval
+    #calculate annual summary of model runs, median of sum of posteriors and then quantiles of these sums for predict interval
     annual_summary <- monthly_collisions_melt %>% 
       dplyr::group_by(iter) %>% 
       dplyr::summarise(sum_monthly = sum(coll_rate, na.rm = T))
     
     annual_rate <- annual_summary %>% 
-      dplyr::mutate(mean = formatC(mean(annual_summary$sum_monthly, na.rm=TRUE), digits=3, format="g"),
+      dplyr::mutate(mean = formatC(median(annual_summary$sum_monthly, na.rm=TRUE), digits=3, format="g"),
                     lower = formatC(quantile(annual_summary$sum_monthly, c(0.025), na.rm=TRUE), digits=3, format="g"),
                     upper = formatC(quantile(annual_summary$sum_monthly, c(0.975), na.rm=TRUE), digits=3, format="g"))
     
