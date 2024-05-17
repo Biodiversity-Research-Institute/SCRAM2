@@ -1,5 +1,0 @@
-Species,Avoidance,AvoidanceSD,Body_Length,Body_LengthSD,Wingspan,WingspanSD,Flight_Speed,Flight_SpeedSD,Prop_Upwind,Prop_UpwindSD,Flight
-Piping_Plover,0.9295,0.0047,0.175,0.0025,0.381,0,11.7,4.7,0.086,0,Flapping
-Red_Knot,0.9295,0.0047,0.24,0.005,0.495,0.0225,20.1,1.9,0.346,0,Flapping
-Common_Tern,0.9295,0.0047,0.37,0.02,0.76,0.02,12.77,4.8,0.375,0,Flapping
-Roseate_Tern,0.9295,0.0047,0.37,0.02,0.76,0.02,12.77,4.8,0.375,0,Flapping
