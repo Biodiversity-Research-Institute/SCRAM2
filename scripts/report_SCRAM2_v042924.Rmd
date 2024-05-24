@@ -435,8 +435,10 @@ quants_labels <- function(val) {
 #load the occupancy model for mapping
 if(params$migration_calc_type == "occup_model") {
   spp_move_occur <- st_as_sf(params$spp_move_data_summary) %>% st_transform(3857)
-  spp_move_occur$quant <- as.factor(quants(spp_move_occur$mean_daily_allmonths))
-  spp_move_occur$quant_labels <- quants_labels(spp_move_occur$mean_daily_allmonths)
+  # spp_move_occur$quant <- as.factor(quants(spp_move_occur$mean_daily_allmonths))
+  spp_move_occur$quant <- as.factor(quants(spp_move_occur$mean_monthly[,params$model_type]))
+  # spp_move_occur$quant_labels <- quants_labels(spp_move_occur$mean_daily_allmonths)
+  spp_move_occur$quant_labels <- quants_labels(spp_move_occur$mean_monthly[,params$model_type])
   
   fill_labels <- as.vector(levels(spp_move_occur$quant_labels))
   shut_up(
@@ -747,10 +749,10 @@ for(s in 1:num_species){
                              model_out$turbine_model, ")")
       }
       
-      bold <- rep(2, 12)
-      month_col <- rep("dark blue", 12)
-      month_col[NA_index] <- rgb(0, 0, 0, 0.8)
-      bold[NA_index] <- 1 # make bold those months with data
+      bold <- rep(2, 13)
+      month_col <- rep("dark blue", 13)
+      month_col[c(1, NA_index+1)] <- rgb(0, 0, 0, 0.8)
+      bold[c(1, NA_index+1)] <- 1 # make bold those months with data
       p1 <- ggplot2::ggplot(bar_outvector, aes(x=mids, y=density)) +
         #center on integers use binwidth = 1 and center = 0; but modified to make bar end at number for thresholding
         # stat_bin(bins=12, aes(y = stat(count / sum(count))), col="darkgreen", fill="darkgreen", binwidth = 0.5, center = 0.5) +
@@ -766,7 +768,7 @@ for(s in 1:num_species){
         annotate("text", x=params$threshold, y=plot_ymax*0.5, col="red", label = "Input threshold", angle=90, vjust=-0.75) +
         theme_classic()
       
-      p2 <- cowplot::ggdraw(cowplot::add_sub(p1, label = c("Month", month.abb), x= c(0, seq(0.1,0.9,0.8/11)), color = month_col, size = 8, fontface = bold))
+      p2 <- cowplot::ggdraw(cowplot::add_sub(p1, label = c("Month", month.abb), x = seq(0,0.9,0.9/12), color = month_col, size = 8, fontface = bold))
       print(p2)
       
       #There needs to be spaces between plots in R Markdown if they are to be given their own caption

@@ -45,6 +45,7 @@
 # 19 Jan 24 - 2.0.1 - discovered an issue where the proportions within flight bands were not being accurately accounted for when you had a fhd that was not smooth. This led to discovery of fixed yinc values within get_collisions_extended function of stochLAB. Created our own version to account for changing yinc values. Other minor bug fixes with reporting. Added basic avoidance values.
 # 06 Feb 24 - 2.0.2 - in some cases, with PIPL output is very skewed by small number of very large collision esimates which leads to means falling outside of 95% range suggesting not appropriate to use mean as central tendency, changed to providing median. Also added an input file check to see if csv and had correct headers.
 # 28 Apr 24 - 2.0.3 - fix some report issues and also address results figure not changing between runs
+# 17 May 24 - 2.1.0 - Brought in newest models using GPS/Argos data for REKN and changed the model input to SF type with array to hold for more compact storage
 
 # load scripts
 source("scripts/helpers.R")
@@ -62,7 +63,8 @@ source("scripts/get_prop_crh_fhd_SCRAM.R")
 # "2.0.0 - Altruistic Anaheim"
 # "2.0.1 - Bombastic Anaheim" 
 # "2.0.2 - Crooning Anaheim"
-SCRAM_version = "2.0.3 - Diplomatic Anaheim"   #https://www.cayennediane.com/big-list-of-hot-peppers/
+# "2.0.3 - Diplomatic Anaheim"
+SCRAM_version = "2.1.0 - Anthill Biquinho"   #https://www.cayennediane.com/big-list-of-hot-peppers/
 
 options(shiny.trace = F)
 
@@ -217,7 +219,7 @@ ui <- dashboardPage(
         # condition = ('input.project_name != "" & input.modeler != ""'),
         condition = ('output.fileUploaded'),
         
-        h4("3) Select the species or load species data:", style = "padding-left: 10px; margin-bottom: 0px"),
+        h4("3) Select the species and model specifics:", style = "padding-left: 10px; margin-bottom: 0px"),
         
         ################### Input: Select the model type and species to model
 
@@ -236,7 +238,23 @@ ui <- dashboardPage(
         #   fileInput("file_spp_param", "Upload species data and flight height distributions", accept = ".csv", multiple = TRUE, width = '90%', options(shiny.maxRequestSize = 25 * 1024^2))
         #   ),
 
+        #################Seleect model type if occupancy model and REKN
+        conditionalPanel(
+          condition = 'input.migration_calc_type == "occup_model" & input.species_input == "Red_Knot"',
+          div(style = "margin-top: -20px;"),  #reduce space between elements
           
+          radioButtons(inputId = "occup_model_type",
+                       # label ="Select included species data or your own:",
+                       label ="Select the occupancy model type:",
+                       # choices = c("Piping Plover" = "Piping_Plover", "Red Knot" = "Red_Knot", "Roseate Tern" = "Roseate_Tern", "Common Tern" = "Common_Tern","Use your own species data" = "Other"),
+                       choices = c("Motus" = "motus", "CRAWL" = "crawl", "Ensemble" = "ensemble"),
+                       selected = character(0)),
+          
+          # fileInput("file_migr_passages", "Upload migration passage data", accept = c('text/csv',
+          #                                                                             'text/comma-separated-values,text/plain',
+          #                                                                             '.csv'), width = '95%'),
+          
+        ),
           
           #################Upload migration passage data
           conditionalPanel(
@@ -387,6 +405,33 @@ ui <- dashboardPage(
           ),
           column(5,
                  fluidRow(
+                   column(5, strong("Select the period to show for the occupancy map: ")),
+                   column(7, 
+                     selectInput(
+                       inputId = "model_period",
+                       label = NULL,
+                       choices = c("Mean monthly" = "mean_monthly", 
+                                   "January"="Jan_mean",
+                                   "February"="Feb_mean",
+                                   "March"="Mar_mean",
+                                   "April"="Apr_mean",
+                                   "May"="May_mean",
+                                   "June"="Jun_mean",
+                                   "July"="Jul_mean",
+                                   "August"="Aug_mean",
+                                   "September"="Sep_mean",
+                                   "October"="Oct_mean",
+                                   "November"="Nov_mean",
+                                   "December"="Dec_mean"),
+                       selected = "mean_monthly",
+                       multiple = FALSE,
+                       selectize = TRUE,
+                       width = NULL,
+                       size = NULL
+                     )
+                   )
+                 ),
+                 fluidRow(
                    box(
                      title = "Wind Farm Map",
                      status = "primary",
@@ -395,10 +440,11 @@ ui <- dashboardPage(
                      leafletOutput("studymap", height = "535px", width = "100%")
                    )
                  ),
-                 fluidRow(
-                   htmlOutput("mean_prob_txt", 
-                              style = "margin-left: 20px; margin-right: 20px; margin-top: -10px; color: steelblue; font-size: 10px")) 
-                 # p("\u00B9Mean occup. prob.= mean monthly occupancy probability"
+                 # fluidRow(
+                 #   htmlOutput("mean_prob_txt", 
+                 #              style = "margin-left: 20px; margin-right: 20px; margin-top: -10px; color: steelblue; font-size: 10px")
+                  # ) # p("\u00B9Mean occup. prob.= mean monthly occupancy probability"
+
           )
         )
       ), #tabpanel wind farm data
@@ -527,7 +573,7 @@ server <- function(input, output, session) {
   observeEvent(c(input$species_input), {
     req(input$migration_calc_type == "occup_model" & length(input$species_input) > 0)
     
-    output$mean_prob_txt <- renderText("\u00B9Mean occup. prob.= mean monthly occupancy probability")
+    output$mean_prob_txt <- renderText("\u00B9Mean occup. prob.= mean daily occupancy probability")
     
   })
 
@@ -640,7 +686,8 @@ server <- function(input, output, session) {
       species_params_vals$migrate_resident <- "migrant"
       if (input$migration_calc_type == "occup_model") {
         #model distribution type inputs
-        species_params_vals$model_input_dist_type <- "2023" 
+        # species_params_vals$model_input_dist_type <- "2023"
+        species_params_vals$model_input_dist_type <- input$occup_model_type
       } else { #annex 6 calcs
         species_params_vals$model_input_dist_type <- "mean"
       }
@@ -648,6 +695,22 @@ server <- function(input, output, session) {
       species_params_vals$migrate_resident <- "resident"
       
     }
+  })
+  
+  
+  #add appropriate species model output to map in leaflet when species chosen
+  #create the color palette functions for coloring
+  spp_move_data <- reactive({
+    
+    req(input$migration_calc_type == "occup_model" & length(input$species_input) > 0 & length(input$occup_model_type) > 0)
+    
+    # species <- input$species_input
+    # grid_layer <-  paste0(species, "_monthly_prob_BOEM_half_deg_", species_params_vals$model_input_dist_type)
+    # load(file.path(data_dir, "movements", 
+    #                paste0(species, "_monthly_prob_BOEM_half_deg_", species_params_vals$model_input_dist_type,".RData")))
+    # 
+    # assign(grid_layer, spp_monthly_prob_BOEM_half_deg)
+    readRDS(paste0("data/movements/", input$species_input, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS"))
   })
   
   output$species_data <-
@@ -726,7 +789,13 @@ server <- function(input, output, session) {
   # sample of the proportion of bird flights at each height band, with no column
   # naming requirements.
   species_fhd <- eventReactive(input$species_input,{
-    fhd <- read.csv(paste0("data/", input$species_input,"_ht_dflt_v2.csv")) %>% 
+    species = input$species_input
+    if (species %in% c("Piping_Plover","Roseate_Tern")) {
+      flt_ht_in <- paste0("data/flight_height/", species,"_ht_dflt_v2.csv")
+    } else {
+      flt_ht_in <- paste0("data/flight_height/", species,"_ht_dflt_v3.csv")
+    }
+    fhd <- read.csv(flt_ht_in) %>% 
       dplyr::select(-Species) %>% 
       dplyr::rename(height = Height_m) %>% 
       dplyr::mutate(height = height - 1)
@@ -736,7 +805,13 @@ server <- function(input, output, session) {
   #Summary table of flight height data for plotting and tables
   #  Created these for default/included data to speed up process, and otherwise summarize loaded flight height data
   flt_ht_summary_react <- reactive({
-    load(file=paste0("data/", input$species_input, "_ht_dflt_v2_summary.RData"))
+    species = input$species_input
+    if (species %in% c("Piping_Plover","Roseate_Tern")) {
+      load(file=paste0("data/flight_height/", species, "_ht_dflt_v2_summary.RData"))
+    } else {
+      load(file=paste0("data/flight_height/", species, "_ht_dflt_v3_summary.RData"))
+      
+    }
     return(flt_ht_summary)
   })
   
@@ -947,7 +1022,8 @@ server <- function(input, output, session) {
   
   # Wind farm data ----------------------------------------------------------
 
-  load(file = file.path(data_dir, "BOEM_halfdeg_grid_sf.RData")) #BOEM_halfdeg_grid_sf
+  # load(file = file.path(data_dir, "BOEM_halfdeg_grid_sf.RData")) #BOEM_halfdeg_grid_sf
+  BOEM_halfdeg_grid_sf <- readRDS("data/BOEM_halfdeg_grid_WGS84_sf.RDS")
   
   # Perform series of checks on file inputs prior to proceeding with accepting inputs for processing
   wind_farm_df <- eventReactive(input$file_wf_param, {
@@ -1223,12 +1299,14 @@ server <- function(input, output, session) {
     }
   
     # bird_flux_vals$trans_prop <- windfarm_loc$cell_sf[[paste0(spp_code, "_prop_trans")]]
-    movement_model_post <- read.csv(unz(paste0("data/movements/", input$species_input, "_movements_", species_params_vals$model_input_dist_type, ".zip"), 
-                                                                            paste0("MovementBaked_", tolower(spp_code), "_", species_params_vals$model_input_dist_type, "_", windfarm_loc$cell_sf$id, ".csv")), header=T)
-    
+    # movement_model_post <- read.csv(unz(paste0("data/movements/", input$species_input, "_movements_", species_params_vals$model_input_dist_type, ".zip"), 
+    #                                                                         paste0("MovementBaked_", tolower(spp_code), "_", species_params_vals$model_input_dist_type, "_", windfarm_loc$cell_sf$id, ".csv")), header=T)
+
     #initialize dataframes for storing values
-    bird_dens <- data.frame(i=1:length(movement_model_post[,1]))
-    num_birds_cell_perday <- data.frame(i=1:length(movement_model_post[,1]))
+    # bird_dens <- data.frame(i=1:length(movement_model_post[,1]))
+    # num_birds_cell_perday <- data.frame(i=1:length(movement_model_post[,1]))
+    bird_dens <- data.frame(i=1:1000)
+    num_birds_cell_perday <- data.frame(i=1:1000)
 
     #Sample counts each month as tnormal and combine with movement draw - resample 1000 times to create
     #a resample matrix of monthly density (birds/km) which can be resampled in stoch_crm
@@ -1245,11 +1323,21 @@ server <- function(input, output, session) {
       # num_birds_cell_perday[[m]] <- popn_samples * movement_model_post[[m]] * bird_flux_vals$trans_prop / 
       #   monthDays(as.Date(paste0("01/", str_pad(i, width = 2, side = "left", pad = "0"), "/2023")))
       #01 Feb 24 - ATG - * the proportion of transient behavior removed from math since went to single state model
-      num_birds_cell_perday[[m]] <- popn_samples * movement_model_post[[m]] / 
+      #17 May 24 - ATG - switched to model output in sf object from two models (Motus and CRAWL and ensemble mean)
+
+      movement_model_post <- spp_move_data()[[m]][as.integer(windfarm_loc$cell_sf$id), species_params_vals$model_input_dist_type, ]
+       
+      # num_birds_cell_perday[[m]] <- popn_samples * movement_model_post[[m]] / 
+      #   monthDays(as.Date(paste0("01/", str_pad(i, width = 2, side = "left", pad = "0"), "/2023")))
+      # browser()
+      num_birds_cell_perday[[m]] <- popn_samples * movement_model_post / 
         monthDays(as.Date(paste0("01/", str_pad(i, width = 2, side = "left", pad = "0"), "/2023")))
       
       # bird_dens[[m]] <- popn_samples * movement_model_post[[m]] * bird_flux_vals$trans_prop / sqrt(windfarm_loc$cell_sf$area)  #birds/km
-      bird_dens[[m]] <- popn_samples * movement_model_post[[m]] / sqrt(windfarm_loc$cell_sf$area)  #birds/km
+      # bird_dens[[m]] <- popn_samples * movement_model_post[[m]] / sqrt(windfarm_loc$cell_sf$area)  #birds/km
+      # bird_dens[[m]] <- popn_samples * movement_model_post / sqrt(windfarm_loc$cell_sf$area_sqkm)  #birds/km
+      bird_dens[[m]] <- popn_samples * movement_model_post / windfarm_loc$cell_sf$mean_cell_width_km  #birds/km
+
     }
     
     bird_flux_vals$num_birds_cell_perday <- as.data.frame(num_birds_cell_perday)
@@ -1297,19 +1385,7 @@ server <- function(input, output, session) {
     return(bird_dens)
   })
   
-  
-  #add appropriate species model output to map in leaflet when species chosen
-  #create the color palette functions for coloring
-  spp_move_data <- reactive({
-      
-    req(input$migration_calc_type == "occup_model" & length(input$species_input) > 0)
-    
-    species <- input$species_input
-    grid_layer <-  paste0(species, "_monthly_prob_BOEM_half_deg_", species_params_vals$model_input_dist_type)
-    load(file.path(data_dir, "movements", 
-                   paste0(species, "_monthly_prob_BOEM_half_deg_", species_params_vals$model_input_dist_type,".RData")))
-    assign(grid_layer, spp_monthly_prob_BOEM_half_deg)
-  })
+
   
   
   removed_UI <- reactiveVal(T) #variable to hold state of the run button (visible or not)
@@ -1336,8 +1412,9 @@ server <- function(input, output, session) {
       cell_model <-
         spp_move_data()[unlist(sf::st_intersects(windfarm_loc$center, st_as_sf(spp_move_data()))),]
       # Render and remove buttons and location model checks
-      
-      if (is.nan(cell_model$mean_sum_daily_allmonths)) {
+
+      # if (is.nan(cell_model$mean_sum_daily_allmonths)) {
+      if (is.nan(cell_model$mean_monthly[1,input$occup_model_type])) {
         #remove action button only when shouldn't run model due to outside bounds
         if (removed_UI() == F) {  
           removeUI(selector = "#run_div") 
@@ -1363,23 +1440,32 @@ server <- function(input, output, session) {
         }
       }
   })
+  
+  #get all mean monthly values for the occup model chosen
+  spp_move_data_mean <- eventReactive(spp_move_data() ,{
+    spp_move_data()$mean_monthly[,input$occup_model_type]
+  })
 
   
-  meanpal <- reactive({
-    #issue with zero inflated bins - need to generate non-zero quants
-    #changed from using cumulative daily to mean monthly (non-culative daily) occupancy
-    non_zero_mean <- spp_move_data()$mean_daily_allmonths[spp_move_data()$mean_daily_allmonths>0]
-    mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7), na.rm = T))
-    colorBin("YlOrRd", spp_move_data()$mean_daily_allmonths, bins = mean_bins)
-  })
+  # meanpal <- reactive({
+  #   #issue with zero inflated bins - need to generate non-zero quants
+  #   #changed from using cumulative daily to mean monthly (non-cumulative daily) occupancy
+  #   # non_zero_mean <- spp_move_data()$mean_daily_allmonths[spp_move_data()$mean_daily_allmonths>0]
+  #   non_zero_mean <- spp_move_data_mean()[!is.na(spp_move_data_mean())]
+  #   mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7), na.rm = T))
+  #   # colorBin("YlOrRd", spp_move_data()$mean_daily_allmonths, bins = mean_bins)
+  #   colorBin("YlOrRd", spp_move_data_mean(), bins = mean_bins)
+  #   
+  # })
   
   #modify map to add occupancy data if the model is used for calculation
   observe({
     
     #render the map with the lat/longs given in the study area map panel
-    req(input$migration_calc_type == "occup_model" & !is.null(spp_move_data()))
-
-    pal <- meanpal()
+    # req(input$migration_calc_type == "occup_model" & !is.null(spp_move_data()))
+    req(input$migration_calc_type == "occup_model" & !is.null(spp_move_data_mean()))
+    
+    # pal <- meanpal()
 
     output$studymap <- renderLeaflet({
       leaflet(options = leafletOptions(preferCanvas = T, tolerance = 1)) %>%
@@ -1424,19 +1510,21 @@ server <- function(input, output, session) {
           group = "Wind farm"
         ) %>%
         setView(lat = mean(wind_farm_df()$Latitude), lng = mean(wind_farm_df()$Longitude), zoom = 6) %>%
-        addPolygons(data=spp_move_data(), weight = 1, fillOpacity = 0.5, opacity = 1,
-                    color = ~pal(mean_daily_allmonths),
-                    highlightOptions = highlightOptions(color = "white", weight = 2),
-                    label = ~formatC(mean_daily_allmonths, digits = 2, format = "g"),
-                    group="Occup. prob.") %>% 
-        #custom legend formatting labels
-        addLegend(data=spp_move_data(), pal = pal, values = ~mean_daily_allmonths,
-                  title = "\u00B9Mean occup. prob.",
-                  labFormat = function(type, cuts, p) {
-                    n = length(cuts)
-                    paste0(formatC(cuts[-n], digits = 2, format = "g"), " &ndash; ", formatC(cuts[-1], digits = 2, format = "g"))
-                  },
-                  position = "bottomright", group="Occup. prob.") %>% 
+
+        # addPolygons(data=spp_move_data(), weight = 1, fillOpacity = 0.5, opacity = 1,
+        #             color = ~pal(mean_monthly[,input$occup_model_type]),
+        #             highlightOptions = highlightOptions(color = "white", weight = 2),
+        #             label = ~formatC(mean_monthly[,input$occup_model_type], digits = 2, format = "g"),
+        #             group="Occup. prob.") %>% 
+        # 
+        # #custom legend formatting labels
+        # addLegend(data=spp_move_data(), pal = pal, values = ~mean_monthly[,input$occup_model_type],
+        #           title = "\u00B9Mean occup. prob.",
+        #           labFormat = function(type, cuts, p) {
+        #             n = length(cuts)
+        #             paste0(formatC(cuts[-n], digits = 2, format = "g"), " &ndash; ", formatC(cuts[-1], digits = 2, format = "g"))
+        #           },
+        #           position = "bottomright", group="Occup. prob.") %>% 
         #Layers control
         addLayersControl(
           overlayGroups = c("Wind farm", "BOEM wind leases", "BOEM wind planning areas", "Occup. prob."), #, "CI range"),
@@ -1445,6 +1533,36 @@ server <- function(input, output, session) {
         )
 
     })
+  })
+  
+  observe({
+    req(input$migration_calc_type == "occup_model" & !is.null(spp_move_data()))
+    
+    #issue with zero inflated bins - need to generate non-zero quants
+    in_move_data <- spp_move_data()[[input$model_period]][,input$occup_model_type]
+    non_zero_mean <- in_move_data[!is.na(in_move_data) & in_move_data > 0]
+    mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7), na.rm = T))
+    period_pal <- colorBin("YlOrRd", spp_move_data(), bins = mean_bins)
+    
+    leafletProxy("studymap") %>%
+      clearShapes() %>% clearControls() %>% 
+      addPolygons(data=spp_move_data(), 
+                  weight = 1, fillOpacity = 0.5, opacity = 1,
+                  color = ~period_pal(get(input$model_period)[,input$occup_model_type]),
+                  highlightOptions = highlightOptions(color = "white", weight = 2),
+                  label = ~formatC(get(input$model_period)[,input$occup_model_type], digits = 2, format = "g"),
+                  group="Occup. prob.") %>% 
+      
+      #custom legend formatting labels
+      addLegend(data=spp_move_data(), 
+                pal = period_pal, 
+                values = ~get(input$model_period)[,input$occup_model_type],
+                title = "\u00B9Mean daily occup. prob.",
+                labFormat = function(type, cuts, p) {
+                  n = length(cuts)
+                  paste0(formatC(cuts[-n], digits = 2, format = "g"), " &ndash; ", formatC(cuts[-1], digits = 2, format = "g"))
+                },
+                position = "bottomright", group="Occup. prob.")
   })
   
   
@@ -1758,10 +1876,10 @@ server <- function(input, output, session) {
                 )
             }
             
-            bold <- rep(2, 12)
-            month_col <- rep("dark blue", 12)
-            month_col[NA_index] <- rgb(0, 0, 0, 0.8)
-            bold[NA_index] <- 1 # make bold those months with data
+            bold <- rep(2, 13)
+            month_col <- rep("dark blue", 13)
+            month_col[c(1, NA_index+1)] <- rgb(0, 0, 0, 0.8)
+            bold[c(1, NA_index+1)] <- 1 # make bold those months with data
             p1 <-
               ggplot2::ggplot(bar_outvector, aes(x = mids, y = density)) +
               #center on integers use binwidth = 1 and center = 0; but modified to make bar end at number for thresholding
@@ -1806,7 +1924,7 @@ server <- function(input, output, session) {
                 cowplot::add_sub(
                   p1,
                   label = c("Month", month.abb),
-                  x = c(0, seq(0.1,0.9,0.8/11)),
+                  x = seq(0,0.9,0.9/12),
                   color = month_col,
                   size = 10,
                   fontface = bold
@@ -2060,14 +2178,21 @@ server <- function(input, output, session) {
           
           write.csv(bird_data[which(bird_data$Species==species),], file = file.path(tmpdir, paste0("SCRAM2_", species, "_character_data.csv")), row.names = FALSE)
           fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0("SCRAM2_", species, "_character_data.csv")))
-          
-          file.copy(from = file.path("data",  paste0(species, "_ht_dflt_v2.csv")), to = file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
-          fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
+         
+          if (species %in% c("Piping_Plover","Roseate_Tern")) {
+            file.copy(from = file.path("data",  paste0(species, "_ht_dflt_v2.csv")), to = file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
+            fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
+          } else {
+            file.copy(from = file.path("data",  paste0(species, "_ht_dflt_v3.csv")), to = file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
+            fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_ht_dflt_v3.csv")))
+          }
           
           #include occupency model if that calc type
           if(input$migration_calc_type == "occup_model") {
-            file.copy(from = file.path("data", "movements", paste0(species, "_movements_", model_output$model_type, ".zip")), to = file.path(tmpdir, paste0(species, "_movements_", model_output$model_type, ".zip")))
-            fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_movements_", model_output$model_type, ".zip")))
+            # file.copy(from = file.path("data", "movements", paste0(species, "_movements_", model_output$model_type, ".zip")), to = file.path(tmpdir, paste0(species, "_movements_", model_output$model_type, ".zip")))
+            # fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_movements_", model_output$model_type, ".zip")))
+            file.copy(from = file.path("data", "movements", paste0(species, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS")), to = file.path(tmpdir, paste0(species, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS")))
+            fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS")))
           }
           
         } #spp model loop
