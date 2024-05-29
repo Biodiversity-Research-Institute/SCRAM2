@@ -102,6 +102,14 @@ interp <- function(a, b, f){
 }
 
 
+weighted_mean <- function(x, y, wt_x) case_when(
+  is.na(x) & is.na(y) ~ NA,
+  is.na(x) & !is.na(y) ~ y,
+  !is.na(x) & is.na(y) ~ x,
+  !is.na(x) & !is.na(y) ~ x * wt_x + y * (1 - wt_x)
+)
+
+
 SC_states_north = c("South Carolina","North Carolina","Virginia","Maryland","Delaware","New Jersey","New York",
                     "Connecticut","Rhode Island","Massachusetts","New Hampshire","Maine","Eastern Canada")
 NC_states_north = c("North Carolina","Virginia","Maryland","Delaware","New Jersey","New York","Connecticut", 

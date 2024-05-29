@@ -1022,7 +1022,7 @@ server <- function(input, output, session) {
   
   # Wind farm data ----------------------------------------------------------
 
-  # load(file = file.path(data_dir, "BOEM_halfdeg_grid_sf.RData")) #BOEM_halfdeg_grid_sf
+  # load(file = file.path(data_dir, "BOEM_halfdeg_grid_sf.RData"))
   BOEM_halfdeg_grid_sf <- readRDS("data/BOEM_halfdeg_grid_WGS84_sf.RDS")
   
   # Perform series of checks on file inputs prior to proceeding with accepting inputs for processing
@@ -1286,6 +1286,7 @@ server <- function(input, output, session) {
   #Load movement model file for the grid cell in which the WF lies
   #Depends on the species and the model type which varies with migratory status
   #read from zipped file to reduce number of files to upload to R Shiny and handle generally
+
   
   bird_flux_vals <- reactiveValues()
   # bird_flux_vals$num_birds_cell_perday <- list()
@@ -1294,9 +1295,9 @@ server <- function(input, output, session) {
     
     req(nrow(popn_data_vals$spp_popn_mean) > 0 & input$migration_calc_type == "occup_model" & !is.null(input$species_input))
 
-    if (length(SpeciesLabels$name_underscore == input$species_input) > 0) {
-      spp_code <- SpeciesLabels[which(SpeciesLabels$name_underscore == input$species_input), "spp_code"]
-    }
+    # if (length(SpeciesLabels$name_underscore == input$species_input) > 0) {
+    #   spp_code <- SpeciesLabels[which(SpeciesLabels$name_underscore == input$species_input), "spp_code"]
+    # }
   
     # bird_flux_vals$trans_prop <- windfarm_loc$cell_sf[[paste0(spp_code, "_prop_trans")]]
     # movement_model_post <- read.csv(unz(paste0("data/movements/", input$species_input, "_movements_", species_params_vals$model_input_dist_type, ".zip"), 
@@ -1324,8 +1325,20 @@ server <- function(input, output, session) {
       #   monthDays(as.Date(paste0("01/", str_pad(i, width = 2, side = "left", pad = "0"), "/2023")))
       #01 Feb 24 - ATG - * the proportion of transient behavior removed from math since went to single state model
       #17 May 24 - ATG - switched to model output in sf object from two models (Motus and CRAWL and ensemble mean)
+      #29 May 24 - ATG - created ensemble from combination of all options for both models = 1 million values
+      
+      if (species_params_vals$model_input_dist_type == "ensemble"){
+        #sample each of the models and then combine into ensemble
+        motus_post <- sample(spp_move_data()[[m]][as.integer(windfarm_loc$cell_sf$id), "motus", ], replace = T, size = 1000)
+        crawl_post <- sample(spp_move_data()[[m]][as.integer(windfarm_loc$cell_sf$id), "crawl", ], replace = T, size = 1000)
+        movement_model_post <- motus_post * 0.5 +  crawl_post * 0.5
+        #in a different field from other models since it has many more values - must sample from these to provide the 1,000 iterations
+        # movement_model_post <- sample(spp_move_data()[[paste0(m, "_ensemble")]][as.integer(windfarm_loc$cell_sf$id), ], replace = T, size = 1000)
+      } else {
+        movement_model_post <- sample(spp_move_data()[[m]][as.integer(windfarm_loc$cell_sf$id), species_params_vals$model_input_dist_type, ], replace = T, size = 1000)
+      }
 
-      movement_model_post <- spp_move_data()[[m]][as.integer(windfarm_loc$cell_sf$id), species_params_vals$model_input_dist_type, ]
+      
        
       # num_birds_cell_perday[[m]] <- popn_samples * movement_model_post[[m]] / 
       #   monthDays(as.Date(paste0("01/", str_pad(i, width = 2, side = "left", pad = "0"), "/2023")))
@@ -2082,7 +2095,7 @@ server <- function(input, output, session) {
         
       }
 
-      save(params, file = "scripts/test_params.RData")
+      # save(params, file = "scripts/test_params.RData")
 
       # can't render to PDF - error with latexpdf. Found this solution:
       # https://stackoverflow.com/questions/66056764/knitr-cannot-find-pdflatex-when-creating-pdf-from-shiny-app
@@ -2139,16 +2152,16 @@ server <- function(input, output, session) {
             turbine_pars_1by5_list <- sampled_pars[c("air_gap", "hub_height", "bld_pitch", "bld_width", "rtr_radius", "rtn_speed")]
             
             turbine_pars_1by5_df <- do.call("rbind", turbine_pars_1by5_list) %>% 
-              mutate(turbine_parameter = row.names(.)) %>% 
-              select(turbine_parameter, mean, sd, median, pctl_2.5, pctl_97.5)
+              dplyr::mutate(turbine_parameter = row.names(.)) %>% 
+              dplyr::select(turbine_parameter, mean, sd, median, pctl_2.5, pctl_97.5)
             
             write.csv(turbine_pars_1by5_df, file = file.path(tmpdir, paste0("SCRAM2_sampled_turbine_pars_1_opt", model_option,  "_", species, "_", turbine_type,".csv")), row.names = FALSE)
             
             turbine_pars_12by6_list <- sampled_pars[c("prop_oper_mth", "downtime")]
             
             turbine_pars_12by6_df <- do.call("rbind", turbine_pars_12by6_list) %>% 
-              mutate(turbine_parameter = row.names(.)) %>% 
-              select(turbine_parameter, mean, sd, median, pctl_2.5, pctl_97.5)
+              dplyr::mutate(turbine_parameter = row.names(.)) %>% 
+              dplyr::select(turbine_parameter, mean, sd, median, pctl_2.5, pctl_97.5)
             
             write.csv(turbine_pars_12by6_df, file = file.path(tmpdir, paste0("SCRAM2_sampled_turbine_pars_2_opt", model_option,  "_", species, "_", turbine_type,".csv")), row.names = FALSE)
 
@@ -2159,8 +2172,8 @@ server <- function(input, output, session) {
             }
             
             bird_pars_1by5_df <- do.call("rbind", bird_pars_1by5_list) %>% 
-              mutate(bird_parameter = row.names(.)) %>% 
-              select(bird_parameter, mean, sd, median, pctl_2.5, pctl_97.5)
+              dplyr::mutate(bird_parameter = row.names(.)) %>% 
+              dplyr::select(bird_parameter, mean, sd, median, pctl_2.5, pctl_97.5)
             
             write.csv(bird_pars_1by5_df, file = file.path(tmpdir, paste0("SCRAM2_sampled_bird_pars_opt", model_option,  "_", species, "_", turbine_type,".csv")), row.names = FALSE)
             
@@ -2180,10 +2193,10 @@ server <- function(input, output, session) {
           fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0("SCRAM2_", species, "_character_data.csv")))
          
           if (species %in% c("Piping_Plover","Roseate_Tern")) {
-            file.copy(from = file.path("data",  paste0(species, "_ht_dflt_v2.csv")), to = file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
+            file.copy(from = file.path("data", "flight_height",  paste0(species, "_ht_dflt_v2.csv")), to = file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
             fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
           } else {
-            file.copy(from = file.path("data",  paste0(species, "_ht_dflt_v3.csv")), to = file.path(tmpdir, paste0(species, "_ht_dflt_v2.csv")))
+            file.copy(from = file.path("data", "flight_height",  paste0(species, "_ht_dflt_v3.csv")), to = file.path(tmpdir, paste0(species, "_ht_dflt_v3.csv")))
             fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_ht_dflt_v3.csv")))
           }
           
@@ -2191,7 +2204,8 @@ server <- function(input, output, session) {
           if(input$migration_calc_type == "occup_model") {
             # file.copy(from = file.path("data", "movements", paste0(species, "_movements_", model_output$model_type, ".zip")), to = file.path(tmpdir, paste0(species, "_movements_", model_output$model_type, ".zip")))
             # fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_movements_", model_output$model_type, ".zip")))
-            file.copy(from = file.path("data", "movements", paste0(species, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS")), to = file.path(tmpdir, paste0(species, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS")))
+            file.copy(from = file.path("data", "movements", paste0(species, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS")), 
+                      to = file.path(tmpdir, paste0(species, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS")))
             fnames4zip1 <- c(fnames4zip1, file.path(tmpdir, paste0(species, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS")))
           }
           
