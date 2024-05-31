@@ -685,9 +685,14 @@ server <- function(input, output, session) {
     if (input$species_input %in% c("Piping_Plover","Red_Knot", "Roseate_Tern")) {
       species_params_vals$migrate_resident <- "migrant"
       if (input$migration_calc_type == "occup_model") {
-        #model distribution type inputs
-        # species_params_vals$model_input_dist_type <- "2023"
-        species_params_vals$model_input_dist_type <- input$occup_model_type
+        if (input$species_input == "Red_Knot") {
+          #model distribution type inputs
+          # species_params_vals$model_input_dist_type <- "2023"
+          species_params_vals$model_input_dist_type <- input$occup_model_type
+        } else {
+          species_params_vals$model_input_dist_type <- "motus"
+        }
+        
       } else { #annex 6 calcs
         species_params_vals$model_input_dist_type <- "mean"
       }
@@ -702,7 +707,7 @@ server <- function(input, output, session) {
   #create the color palette functions for coloring
   spp_move_data <- reactive({
     
-    req(input$migration_calc_type == "occup_model" & length(input$species_input) > 0 & length(input$occup_model_type) > 0)
+    req(input$migration_calc_type == "occup_model" & length(input$species_input) > 0 & length(species_params_vals$model_input_dist_type) > 0)
     
     # species <- input$species_input
     # grid_layer <-  paste0(species, "_monthly_prob_BOEM_half_deg_", species_params_vals$model_input_dist_type)
@@ -1326,7 +1331,7 @@ server <- function(input, output, session) {
       #01 Feb 24 - ATG - * the proportion of transient behavior removed from math since went to single state model
       #17 May 24 - ATG - switched to model output in sf object from two models (Motus and CRAWL and ensemble mean)
       #29 May 24 - ATG - created ensemble from combination of all options for both models = 1 million values
-      
+
       if (species_params_vals$model_input_dist_type == "ensemble"){
         #sample each of the models and then combine into ensemble
         motus_post <- sample(spp_move_data()[[m]][as.integer(windfarm_loc$cell_sf$id), "motus", ], replace = T, size = 1000)
@@ -1427,7 +1432,7 @@ server <- function(input, output, session) {
       # Render and remove buttons and location model checks
 
       # if (is.nan(cell_model$mean_sum_daily_allmonths)) {
-      if (is.nan(cell_model$mean_monthly[1,input$occup_model_type])) {
+      if (is.nan(cell_model$mean_monthly[1, species_params_vals$model_input_dist_type])) {
         #remove action button only when shouldn't run model due to outside bounds
         if (removed_UI() == F) {  
           removeUI(selector = "#run_div") 
@@ -1456,7 +1461,7 @@ server <- function(input, output, session) {
   
   #get all mean monthly values for the occup model chosen
   spp_move_data_mean <- eventReactive(spp_move_data() ,{
-    spp_move_data()$mean_monthly[,input$occup_model_type]
+    spp_move_data()$mean_monthly[,species_params_vals$model_input_dist_type]
   })
 
   
@@ -1525,13 +1530,13 @@ server <- function(input, output, session) {
         setView(lat = mean(wind_farm_df()$Latitude), lng = mean(wind_farm_df()$Longitude), zoom = 6) %>%
 
         # addPolygons(data=spp_move_data(), weight = 1, fillOpacity = 0.5, opacity = 1,
-        #             color = ~pal(mean_monthly[,input$occup_model_type]),
+        #             color = ~pal(mean_monthly[,species_params_vals$model_input_dist_type]),
         #             highlightOptions = highlightOptions(color = "white", weight = 2),
-        #             label = ~formatC(mean_monthly[,input$occup_model_type], digits = 2, format = "g"),
+        #             label = ~formatC(mean_monthly[,species_params_vals$model_input_dist_type], digits = 2, format = "g"),
         #             group="Occup. prob.") %>% 
         # 
         # #custom legend formatting labels
-        # addLegend(data=spp_move_data(), pal = pal, values = ~mean_monthly[,input$occup_model_type],
+        # addLegend(data=spp_move_data(), pal = pal, values = ~mean_monthly[,species_params_vals$model_input_dist_type],
         #           title = "\u00B9Mean occup. prob.",
         #           labFormat = function(type, cuts, p) {
         #             n = length(cuts)
@@ -1552,7 +1557,7 @@ server <- function(input, output, session) {
     req(input$migration_calc_type == "occup_model" & !is.null(spp_move_data()))
     
     #issue with zero inflated bins - need to generate non-zero quants
-    in_move_data <- spp_move_data()[[input$model_period]][,input$occup_model_type]
+    in_move_data <- spp_move_data()[[input$model_period]][,species_params_vals$model_input_dist_type]
     non_zero_mean <- in_move_data[!is.na(in_move_data) & in_move_data > 0]
     mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7), na.rm = T))
     period_pal <- colorBin("YlOrRd", spp_move_data(), bins = mean_bins)
@@ -1561,15 +1566,15 @@ server <- function(input, output, session) {
       clearShapes() %>% clearControls() %>% 
       addPolygons(data=spp_move_data(), 
                   weight = 1, fillOpacity = 0.5, opacity = 1,
-                  color = ~period_pal(get(input$model_period)[,input$occup_model_type]),
+                  color = ~period_pal(get(input$model_period)[,species_params_vals$model_input_dist_type]),
                   highlightOptions = highlightOptions(color = "white", weight = 2),
-                  label = ~formatC(get(input$model_period)[,input$occup_model_type], digits = 2, format = "g"),
+                  label = ~formatC(get(input$model_period)[,species_params_vals$model_input_dist_type], digits = 2, format = "g"),
                   group="Occup. prob.") %>% 
       
       #custom legend formatting labels
       addLegend(data=spp_move_data(), 
                 pal = period_pal, 
-                values = ~get(input$model_period)[,input$occup_model_type],
+                values = ~get(input$model_period)[,species_params_vals$model_input_dist_type],
                 title = "\u00B9Mean daily occup. prob.",
                 labFormat = function(type, cuts, p) {
                   n = length(cuts)
