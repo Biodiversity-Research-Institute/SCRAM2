@@ -46,6 +46,7 @@
 # 06 Feb 24 - 2.0.2 - in some cases, with PIPL output is very skewed by small number of very large collision esimates which leads to means falling outside of 95% range suggesting not appropriate to use mean as central tendency, changed to providing median. Also added an input file check to see if csv and had correct headers.
 # 28 Apr 24 - 2.0.3 - fix some report issues and also address results figure not changing between runs
 # 17 May 24 - 2.1.0 - Brought in newest models using GPS/Argos data for REKN and changed the model input to SF type with array to hold for more compact storage
+# 05 Jun 24 - 2.1.1 - Added Motus study area outline, fixed instruction text, minor plot adjustments.
 
 # load scripts
 source("scripts/helpers.R")
@@ -64,7 +65,8 @@ source("scripts/get_prop_crh_fhd_SCRAM.R")
 # "2.0.1 - Bombastic Anaheim" 
 # "2.0.2 - Crooning Anaheim"
 # "2.0.3 - Diplomatic Anaheim"
-SCRAM_version = "2.1.0 - Anthill Biquinho"   #https://www.cayennediane.com/big-list-of-hot-peppers/
+# "2.1.0 - Anthill Biquinho"
+SCRAM_version = "2.1.1 - Breadcrumb Biquinho"   #https://www.cayennediane.com/big-list-of-hot-peppers/
 
 options(shiny.trace = F)
 
@@ -378,15 +380,46 @@ ui <- dashboardPage(
         "Wind Farm Inputs",
         value = "wind_farm_panel",
         fluidRow(
+          
           box(
             status = "primary",
             solidHeader = F,
             collapsible = T,
             width = 12,
             style = "margin-top: -20px; padding-bottom: 20px",
+            column(7,
             htmlOutput("check_windfarm_instructions", style = "margin-top: -14px")
-          )
-        ),
+              ),
+            column(4,
+                   fluidRow(
+                            
+                              column(5, strong("Select the period to show for the occupancy map: ")),
+                              column(7, 
+                                     selectInput(
+                                       inputId = "model_period",
+                                       label = NULL,
+                                       choices = c("Mean monthly" = "mean_monthly", 
+                                                   "January"="Jan_mean",
+                                                   "February"="Feb_mean",
+                                                   "March"="Mar_mean",
+                                                   "April"="Apr_mean",
+                                                   "May"="May_mean",
+                                                   "June"="Jun_mean",
+                                                   "July"="Jul_mean",
+                                                   "August"="Aug_mean",
+                                                   "September"="Sep_mean",
+                                                   "October"="Oct_mean",
+                                                   "November"="Nov_mean",
+                                                   "December"="Dec_mean"),
+                                       selected = "mean_monthly",
+                                       multiple = FALSE,
+                                       selectize = TRUE,
+                                       width = NULL,
+                                       size = NULL))
+                            ),
+                          )
+       
+            )),
         fluidRow(
           column(7,
                  fluidRow(
@@ -404,33 +437,7 @@ ui <- dashboardPage(
                  )
           ),
           column(5,
-                 fluidRow(
-                   column(5, strong("Select the period to show for the occupancy map: ")),
-                   column(7, 
-                     selectInput(
-                       inputId = "model_period",
-                       label = NULL,
-                       choices = c("Mean monthly" = "mean_monthly", 
-                                   "January"="Jan_mean",
-                                   "February"="Feb_mean",
-                                   "March"="Mar_mean",
-                                   "April"="Apr_mean",
-                                   "May"="May_mean",
-                                   "June"="Jun_mean",
-                                   "July"="Jul_mean",
-                                   "August"="Aug_mean",
-                                   "September"="Sep_mean",
-                                   "October"="Oct_mean",
-                                   "November"="Nov_mean",
-                                   "December"="Dec_mean"),
-                       selected = "mean_monthly",
-                       multiple = FALSE,
-                       selectize = TRUE,
-                       width = NULL,
-                       size = NULL
-                     )
-                   )
-                 ),
+                 
                  fluidRow(
                    box(
                      title = "Wind Farm Map",
@@ -440,11 +447,6 @@ ui <- dashboardPage(
                      leafletOutput("studymap", height = "535px", width = "100%")
                    )
                  ),
-                 # fluidRow(
-                 #   htmlOutput("mean_prob_txt", 
-                 #              style = "margin-left: 20px; margin-right: 20px; margin-top: -10px; color: steelblue; font-size: 10px")
-                  # ) # p("\u00B9Mean occup. prob.= mean monthly occupancy probability"
-
           )
         )
       ), #tabpanel wind farm data
@@ -582,21 +584,24 @@ server <- function(input, output, session) {
   
   output$user_instructions <- renderText(
     "<h4>INSTRUCTIONS:</h4>
-   <p>1) Enter the project name and person conducting the analysis. This will be saved in output. <br>
-    2) Select the species of interest included with SCRAM. <br>
-    3) Check the species data for expected values in the tables and figures in the 'Species Data' tab. If data values are not as
-    expected, do NOT run SCRAM. These values are currently fixed and can't be changed. Future updates should allow custom data. <br>
-    4) Download the example wind farm input data using the button to the right and either modify for your specific use
+   <p>
+    1) Review the SCRAM reports and user manual (https://briwildlife.org/scram/) prior to any use of this tool. 
+    These documents describe best practices for use of this tool, 
+    as well as the biases and limitations of the available data for estimating collision risk. <br>
+    2) Enter the project name and person conducting the analysis. This will be saved in output. <br>
+    3) Select the migration calculation mode: movement model or Band 2012 Annex6. <br>
+    4) Download the example wind farm input data using the button to the right and either modify for your specific use,
     or use it directly to demonstrate the use of the tool. Save as a CSV file if modified. <br>
-    5) Upon proper loading of the wind farm data, the wind farm data tab will be shown.
-    Check the wind farm data for correct values in the include maps and tables. 
+    5) Upon proper loading of the wind farm data, the Wind Farm Inputs tab will be shown.
+    Check the wind farm data for correct values.
     Correct any errors and reload as necessary. <br>
-    6) Choose which version of the CRM to run.<br>
-    7) Select the number of iterations (2,500-25,0000), recommended 10,000 min. for final runs.<br>
-    8) Set a threshold for the maximum acceptable number of collisions. <br>
-    9) Run CRM. <br>
-    10) Generate summary report and/or download results for each iteration. <br>
-    11) Check the CRM results.</p>")
+    6) Select the species of interest included with SCRAM. <br>
+    7) Choose which version of the CRM to run - Option 2 or Option 3.<br>
+    8) Select the number of iterations (2,500-25,0000), recommended 10,000 min. for final runs.<br>
+    9) Set a threshold value to see if annual collisions exceed this value. <br>
+    10) Run CRM. <br>
+    11) Generate summary report and/or download results for each iteration. <br>
+    12) Check the CRM results.</p>")
   
   output$check_windfarm_instructions <- renderText(
     "<h4>INSTRUCTIONS:</h4>
@@ -1535,14 +1540,7 @@ server <- function(input, output, session) {
         #             label = ~formatC(mean_monthly[,species_params_vals$model_input_dist_type], digits = 2, format = "g"),
         #             group="Occup. prob.") %>% 
         # 
-        # #custom legend formatting labels
-        # addLegend(data=spp_move_data(), pal = pal, values = ~mean_monthly[,species_params_vals$model_input_dist_type],
-        #           title = "\u00B9Mean occup. prob.",
-        #           labFormat = function(type, cuts, p) {
-        #             n = length(cuts)
-        #             paste0(formatC(cuts[-n], digits = 2, format = "g"), " &ndash; ", formatC(cuts[-1], digits = 2, format = "g"))
-        #           },
-        #           position = "bottomright", group="Occup. prob.") %>% 
+ 
         #Layers control
         addLayersControl(
           overlayGroups = c("Wind farm", "BOEM wind leases", "BOEM wind planning areas", "Occup. prob."), #, "CI range"),
@@ -1561,7 +1559,7 @@ server <- function(input, output, session) {
     non_zero_mean <- in_move_data[!is.na(in_move_data) & in_move_data > 0]
     mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7), na.rm = T))
     period_pal <- colorBin("YlOrRd", spp_move_data(), bins = mean_bins)
-    
+
     leafletProxy("studymap") %>%
       clearShapes() %>% clearControls() %>% 
       addPolygons(data=spp_move_data(), 
@@ -1570,8 +1568,12 @@ server <- function(input, output, session) {
                   highlightOptions = highlightOptions(color = "white", weight = 2),
                   label = ~formatC(get(input$model_period)[,species_params_vals$model_input_dist_type], digits = 2, format = "g"),
                   group="Occup. prob.") %>% 
-      
+      addPolygons(data = MotusStudyArea_sf, color = "slateblue", fill = F, weight = 4, group="Occup. prob.") %>% 
       #custom legend formatting labels
+      addLegend(colors = c("slateblue"),
+                labels = c("Motus study area"),
+                position = "bottomright",
+                group = "Occup. prob.") %>%
       addLegend(data=spp_move_data(), 
                 pal = period_pal, 
                 values = ~get(input$model_period)[,species_params_vals$model_input_dist_type],
@@ -1580,7 +1582,8 @@ server <- function(input, output, session) {
                   n = length(cuts)
                   paste0(formatC(cuts[-n], digits = 2, format = "g"), " &ndash; ", formatC(cuts[-1], digits = 2, format = "g"))
                 },
-                position = "bottomright", group="Occup. prob.")
+                position = "bottomright", group = "Occup. prob.")
+
   })
   
   
@@ -1941,7 +1944,7 @@ server <- function(input, output, session) {
               cowplot::ggdraw(
                 cowplot::add_sub(
                   p1,
-                  label = c("Month", month.abb),
+                  label = c("Month", "( Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec )"),
                   x = seq(0,0.9,0.9/12),
                   color = month_col,
                   size = 10,

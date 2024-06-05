@@ -61,7 +61,6 @@ library(sf)
 library(basemaps)  #ATG - 010924 need Terra version 1.7.29 so as not to crash on mosaicking basemaps, and also deal with NAs and other issues
 library(ggnewscale)
 options(tinytex.verbose = TRUE)
-# load(file = "P:/SCRAM/BRI/SCRAM2_shiny/scripts/test_params.RData")
 
 ```
 
@@ -138,6 +137,9 @@ num_turb_mods <- length(params$model_output[[1]])
 
 ## Model inputs used for this analysis
 
+<br>
+<br>
+Note about tracking data inputs: the SCRAM2 movement model uses automated radio telemetry (Motus) data for Red Knots, Piping Plovers, and Roseate Terns, as well as data from GPS and Argos transmitters for Red Knots. Sample sizes are n=240 Red Knots (Motus), n=106 Red Knots (GPS/Argos), n=107 Piping Plovers (Motus), and n=134 Roseate Terns (Motus). Due to when usable tracking data were collected in the study area, collision risk predictions using tracking data are provided for the months of August to November (Red Knots) and May-August (Piping Plovers and Roseate Terns). The Band 2012 Annex 6 model does not use tracking data to help estimate occupancy; instead, it assumes an even distribution of birds throughout a predefined migratory front. Thus, it estimates collisions for all 12 months of the year. For more information, see reports available at https://briwildlife.org/scram/
 <br>
 <br>
 
@@ -768,7 +770,7 @@ for(s in 1:num_species){
         annotate("text", x=params$threshold, y=plot_ymax*0.5, col="red", label = "Input threshold", angle=90, vjust=-0.75) +
         theme_classic()
       
-      p2 <- cowplot::ggdraw(cowplot::add_sub(p1, label = c("Month", month.abb), x = seq(0,0.9,0.9/12), color = month_col, size = 8, fontface = bold))
+      p2 <- cowplot::ggdraw(cowplot::add_sub(p1, label = c("Month", "( Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec )"), x = seq(0,0.9,0.9/12), color = month_col, size = 8, fontface = bold))
       print(p2)
       
       #There needs to be spaces between plots in R Markdown if they are to be given their own caption

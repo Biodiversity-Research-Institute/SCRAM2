@@ -49,6 +49,9 @@ BOEM_lease_outlines <- sf::read_sf("data/Wind_Lease_Outlines_11_16_2023.shp") %>
 BOEM_planning_area_outlines <- sf::read_sf("data/BOEM_Wind_Planning_Area_Outlines_11_3_2023.shp") %>% st_transform(3857)
 states_sf <- sf::read_sf("data/statesp020.shp") %>% st_transform(3857)
 
+MotusStudyArea_sf <- read_sf("data/MotusStudyArea.shp") %>% st_transform(4326)
+MotusStudyArea_sf$studyarea = "Motus study area"
+
 # https://stackoverflow.com/questions/6177629/how-to-silence-the-output-from-this-r-package
 # small function that silences cat() and print() (but not message() or warning()) and returns whatever the expression returned:
 shut_up = function(expr) {
