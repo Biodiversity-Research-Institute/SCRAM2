@@ -112,6 +112,13 @@ weighted_mean <- function(x, y, wt_x) case_when(
   !is.na(x) & !is.na(y) ~ x * wt_x + y * (1 - wt_x)
 )
 
+gen_weights <- function(x, y, wt_x) case_when(
+  is.na(sum(x)) & is.na(sum(y)) ~ NA,
+  is.na(sum(x)) & !is.na(sum(y)) ~ NA,
+  !is.na(sum(x)) & is.na(sum(y)) ~ 1,
+  !is.na(sum(x)) & !is.na(sum(y)) ~ 1 - wt_x
+)
+
 
 SC_states_north = c("South Carolina","North Carolina","Virginia","Maryland","Delaware","New Jersey","New York",
                     "Connecticut","Rhode Island","Massachusetts","New Hampshire","Maine","Eastern Canada")

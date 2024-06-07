@@ -47,6 +47,7 @@
 # 28 Apr 24 - 2.0.3 - fix some report issues and also address results figure not changing between runs
 # 17 May 24 - 2.1.0 - Brought in newest models using GPS/Argos data for REKN and changed the model input to SF type with array to hold for more compact storage
 # 05 Jun 24 - 2.1.1 - Added Motus study area outline, fixed instruction text, minor plot adjustments.
+# 07 Jun 24 - 2.1.2 - Updated avoidance values to mean between two estimates
 
 # load scripts
 source("scripts/helpers.R")
@@ -66,7 +67,8 @@ source("scripts/get_prop_crh_fhd_SCRAM.R")
 # "2.0.2 - Crooning Anaheim"
 # "2.0.3 - Diplomatic Anaheim"
 # "2.1.0 - Anthill Biquinho"
-SCRAM_version = "2.1.1 - Breadcrumb Biquinho"   #https://www.cayennediane.com/big-list-of-hot-peppers/
+# 2.1.1 - Breadcrumb Biquinho
+SCRAM_version = "2.1.2 - Catacomb Biquinho"   #https://www.cayennediane.com/big-list-of-hot-peppers/
 
 options(shiny.trace = F)
 
@@ -622,7 +624,7 @@ server <- function(input, output, session) {
   # )
   
   #load bird data
-  bird_data <- read.csv("data/BirdData_020224.csv", header = T) #"data/BirdData_020923.csv"
+  bird_data <- read.csv("data/BirdData_060724.csv", header = T) #BirdData_020224.csv, "data/BirdData_020923.csv"
 
   species_params_vals <- reactiveValues(migrate_resident = NULL, )
   
@@ -730,7 +732,7 @@ server <- function(input, output, session) {
       #account for different avoidance parameters to display
       if (crm_option_radio_react() == "2") {
         bird_data_opt <- bird_data[which(bird_data$Species == input$species_input),] %>% 
-          select(-c(AvoidanceExt, AvoidanceExtSD))
+          dplyr::select(-c(AvoidanceExt, AvoidanceExtSD))
         
         species_params_defs <- c(
           "Parameter definitions",
@@ -752,7 +754,7 @@ server <- function(input, output, session) {
       
       if (crm_option_radio_react() == "3") {
         bird_data_opt <- bird_data[which(bird_data$Species == input$species_input),] %>% 
-          select(-c(AvoidanceBsc, AvoidanceBscSD))
+          dplyr::select(-c(AvoidanceBsc, AvoidanceBscSD))
         
         species_params_defs <- c(
           "Parameter definitions",
@@ -1337,11 +1339,38 @@ server <- function(input, output, session) {
       #17 May 24 - ATG - switched to model output in sf object from two models (Motus and CRAWL and ensemble mean)
       #29 May 24 - ATG - created ensemble from combination of all options for both models = 1 million values
 
+      
       if (species_params_vals$model_input_dist_type == "ensemble"){
         #sample each of the models and then combine into ensemble
         motus_post <- sample(spp_move_data()[[m]][as.integer(windfarm_loc$cell_sf$id), "motus", ], replace = T, size = 1000)
+
         crawl_post <- sample(spp_move_data()[[m]][as.integer(windfarm_loc$cell_sf$id), "crawl", ], replace = T, size = 1000)
-        movement_model_post <- motus_post * 0.5 +  crawl_post * 0.5
+        
+        #weight if occupancy values not NA
+        if (is.na(sum(motus_post)) & is.na(sum(crawl_post))) {
+          motus_wt = NA
+          crawl_wt = NA
+        } else if (!is.na(sum(motus_post)) & is.na(sum(crawl_post))) {
+          motus_wt = 1
+          crawl_wt = NA
+        } else if (is.na(sum(motus_post)) & !is.na(sum(crawl_post))) {
+          motus_wt = NA
+          crawl_wt = 1
+        } else {
+          motus_wt = 0.5
+          crawl_wt = 0.5
+        }
+
+        motus_post <- motus_post * motus_wt
+        crawl_post <- crawl_post * crawl_wt
+        
+        # movement_model_post <- motus_post + crawl_post
+        if (is.na(sum(motus_post)) & is.na(sum(crawl_post))){
+          movement_model_post <- motus_post
+        } else {
+          movement_model_post <- rowSums(data.frame(cbind(motus_post, crawl_post)), na.rm = T)
+        }
+        
         #in a different field from other models since it has many more values - must sample from these to provide the 1,000 iterations
         # movement_model_post <- sample(spp_move_data()[[paste0(m, "_ensemble")]][as.integer(windfarm_loc$cell_sf$id), ], replace = T, size = 1000)
       } else {
