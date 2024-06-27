@@ -36,7 +36,7 @@ library(ggplot2)
 library(cowplot)
 
 # set.seed(11)
-
+options(scipen=100, digits=6)
 #load the species movement model mean monthly probability data
 #generate all species data
 data_dir <- "data"
@@ -51,6 +51,8 @@ states_sf <- sf::read_sf("data/statesp020.shp") %>% st_transform(3857)
 
 MotusStudyArea_sf <- read_sf("data/MotusStudyArea.shp") %>% st_transform(4326)
 MotusStudyArea_sf$studyarea = "Motus study area"
+
+MotusStudyArea_lines_sf <- st_cast(MotusStudyArea_sf, "LINESTRING")
 
 # https://stackoverflow.com/questions/6177629/how-to-silence-the-output-from-this-r-package
 # small function that silences cat() and print() (but not message() or warning()) and returns whatever the expression returned:

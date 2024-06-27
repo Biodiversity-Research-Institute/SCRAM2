@@ -47,7 +47,8 @@
 # 28 Apr 24 - 2.0.3 - fix some report issues and also address results figure not changing between runs
 # 17 May 24 - 2.1.0 - Brought in newest models using GPS/Argos data for REKN and changed the model input to SF type with array to hold for more compact storage
 # 05 Jun 24 - 2.1.1 - Added Motus study area outline, fixed instruction text, minor plot adjustments.
-# 07 Jun 24 - 2.1.2 - Updated avoidance values to mean between two estimates
+# 07 Jun 24 - 2.1.2 - Updated avoidance values to mean between two estimates.
+# 26 Jun 24 - 2.1.3 - Changed monthly mean values for cum. exposure to be in line with report.
 
 # load scripts
 source("scripts/helpers.R")
@@ -67,8 +68,9 @@ source("scripts/get_prop_crh_fhd_SCRAM.R")
 # "2.0.2 - Crooning Anaheim"
 # "2.0.3 - Diplomatic Anaheim"
 # "2.1.0 - Anthill Biquinho"
-# 2.1.1 - Breadcrumb Biquinho
-SCRAM_version = "2.1.2 - Catacomb Biquinho"   #https://www.cayennediane.com/big-list-of-hot-peppers/
+# "2.1.1 - Breadcrumb Biquinho"
+# "2.1.2 - Catacomb Biquinho"
+SCRAM_version = "2.1.3 - Daffodil Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
 
 options(shiny.trace = F)
 
@@ -131,17 +133,17 @@ ui <- dashboardPage(
       ),
       style = "float: right"
     ),
-    tags$li(
-      class = "dropdown",
-      a(
-        img(src = "URI.png", height = "40px"),
-        href = 'https://URI.edu',
-        style = "padding-top: 5px; padding-bottom: 5px; padding-left: 5px;, padding-right: 0px; margin-right: -15px",
-        target = '_blank',
-        id = "lbl_URILogoLink"
-      ),
-      style = "float: right"
-    ),
+    # tags$li(
+    #   class = "dropdown",
+    #   a(
+    #     img(src = "URI.png", height = "40px"),
+    #     href = 'https://URI.edu',
+    #     style = "padding-top: 5px; padding-bottom: 5px; padding-left: 5px;, padding-right: 0px; margin-right: -15px",
+    #     target = '_blank',
+    #     id = "lbl_URILogoLink"
+    #   ),
+    #   style = "float: right"
+    # ),
     tags$li(
       class = "dropdown",
       a(
@@ -1372,22 +1374,15 @@ server <- function(input, output, session) {
         }
         
         #in a different field from other models since it has many more values - must sample from these to provide the 1,000 iterations
-        # movement_model_post <- sample(spp_move_data()[[paste0(m, "_ensemble")]][as.integer(windfarm_loc$cell_sf$id), ], replace = T, size = 1000)
       } else {
         movement_model_post <- sample(spp_move_data()[[m]][as.integer(windfarm_loc$cell_sf$id), species_params_vals$model_input_dist_type, ], replace = T, size = 1000)
       }
-
       
-       
-      # num_birds_cell_perday[[m]] <- popn_samples * movement_model_post[[m]] / 
-      #   monthDays(as.Date(paste0("01/", str_pad(i, width = 2, side = "left", pad = "0"), "/2023")))
-      # browser()
+      # Calculate the number of birds that can be in an exposure model cell in a day for display
       num_birds_cell_perday[[m]] <- popn_samples * movement_model_post / 
         monthDays(as.Date(paste0("01/", str_pad(i, width = 2, side = "left", pad = "0"), "/2023")))
       
-      # bird_dens[[m]] <- popn_samples * movement_model_post[[m]] * bird_flux_vals$trans_prop / sqrt(windfarm_loc$cell_sf$area)  #birds/km
-      # bird_dens[[m]] <- popn_samples * movement_model_post[[m]] / sqrt(windfarm_loc$cell_sf$area)  #birds/km
-      # bird_dens[[m]] <- popn_samples * movement_model_post / sqrt(windfarm_loc$cell_sf$area_sqkm)  #birds/km
+      # Calculate the bird density values that will go into collision estimates
       bird_dens[[m]] <- popn_samples * movement_model_post / windfarm_loc$cell_sf$mean_cell_width_km  #birds/km
 
     }
@@ -1458,14 +1453,12 @@ server <- function(input, output, session) {
       }
   })
   
-  # observeEvent(c(spp_move_data(), wind_farm_df()), {
   observe({
     #Final check to see if the wind farm falls in an area with model output
       cell_model <-
         spp_move_data()[unlist(sf::st_intersects(windfarm_loc$center, st_as_sf(spp_move_data()))),]
       # Render and remove buttons and location model checks
 
-      # if (is.nan(cell_model$mean_sum_daily_allmonths)) {
       if (is.nan(cell_model$mean_monthly[1, species_params_vals$model_input_dist_type])) {
         #remove action button only when shouldn't run model due to outside bounds
         if (removed_UI() == F) {  
@@ -1524,7 +1517,7 @@ server <- function(input, output, session) {
         addEsriBasemapLayer(esriBasemapLayers$Oceans, autoLabels = TRUE) %>%
         addEsriFeatureLayer(
           #add BOEM renewable lease areas as a WFS
-          url = "https://services7.arcgis.com/G5Ma95RzqJRPKsWL/ArcGIS/rest/services/Wind_Lease_Boundaries__BOEM_/FeatureServer/0",
+          url = "https://services7.arcgis.com/G5Ma95RzqJRPKsWL/ArcGIS/rest/services/Wind_Lease_Boundaries__BOEM_/FeatureServer/8",
           weight = 1, fill=FALSE, color = "yellow",#"#808080", #gray
           layerId = "BOEM_wind_leases",
           group = "BOEM wind leases") %>%
@@ -1562,18 +1555,10 @@ server <- function(input, output, session) {
           group = "Wind farm"
         ) %>%
         setView(lat = mean(wind_farm_df()$Latitude), lng = mean(wind_farm_df()$Longitude), zoom = 6) %>%
-
-        # addPolygons(data=spp_move_data(), weight = 1, fillOpacity = 0.5, opacity = 1,
-        #             color = ~pal(mean_monthly[,species_params_vals$model_input_dist_type]),
-        #             highlightOptions = highlightOptions(color = "white", weight = 2),
-        #             label = ~formatC(mean_monthly[,species_params_vals$model_input_dist_type], digits = 2, format = "g"),
-        #             group="Occup. prob.") %>% 
-        # 
- 
         #Layers control
         addLayersControl(
-          overlayGroups = c("Wind farm", "BOEM wind leases", "BOEM wind planning areas", "Occup. prob."), #, "CI range"),
-          position = "topright", #"topleft",
+          overlayGroups = c("Wind farm", "BOEM wind leases", "BOEM wind planning areas", "Cum. exp."),
+          position = "topright", 
           options = layersControlOptions(collapsed = TRUE)
         )
 
@@ -1585,9 +1570,20 @@ server <- function(input, output, session) {
     
     #issue with zero inflated bins - need to generate non-zero quants
     in_move_data <- spp_move_data()[[input$model_period]][,species_params_vals$model_input_dist_type]
-    non_zero_mean <- in_move_data[!is.na(in_move_data) & in_move_data > 0]
-    mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0,1,1/7), na.rm = T))
-    period_pal <- colorBin("YlOrRd", spp_move_data(), bins = mean_bins)
+
+    mean_bins <- quantile(in_move_data, probs = seq(0,1,1/8), type = 7, na.rm = T)#type 7 seems to match most closely with ESRI
+    # Check for duplicate 0s in bins which causes failure in display
+    if (is.na(mean_bins[1])) {
+      period_pal <- colorBin("YlOrRd", domain = NULL)
+    } else if (mean_bins[1] == 0 & mean_bins[2] == 0) {
+      non_zero_mean <- c(0.000001, in_move_data[!is.na(in_move_data) & in_move_data > 0])
+      mean_bins <- c(0, quantile(non_zero_mean, probs=seq(0.000001,1,(1-0.000001)/7), names = F, na.rm = T))
+      #not coloring the max cell, truncated so add a smidge
+      mean_bins <- replace(mean_bins, 9, mean_bins[9] + 0.000001)
+      period_pal <- colorBin("YlOrRd", non_zero_mean, bins = mean_bins)
+    } else {
+      period_pal <- colorBin("YlOrRd", spp_move_data(), mean_bins)
+    }
 
     leafletProxy("studymap") %>%
       clearShapes() %>% clearControls() %>% 
@@ -1595,23 +1591,29 @@ server <- function(input, output, session) {
                   weight = 1, fillOpacity = 0.5, opacity = 1,
                   color = ~period_pal(get(input$model_period)[,species_params_vals$model_input_dist_type]),
                   highlightOptions = highlightOptions(color = "white", weight = 2),
-                  label = ~formatC(get(input$model_period)[,species_params_vals$model_input_dist_type], digits = 2, format = "g"),
-                  group="Occup. prob.") %>% 
-      addPolygons(data = MotusStudyArea_sf, color = "slateblue", fill = F, weight = 4, group="Occup. prob.") %>% 
+                  label = ~formatC(get(input$model_period)[,species_params_vals$model_input_dist_type], digits = 3, format = "g"),
+                  group="Cum. exp.") %>% 
+      #need to use Polylines here otherwise can't get labels for exposure data below it, but need lines above to see it
+      addPolylines(data = MotusStudyArea_lines_sf, color = "slateblue", weight = 5, group="Cum. exp.") %>% 
       #custom legend formatting labels
       addLegend(colors = c("slateblue"),
                 labels = c("Motus study area"),
                 position = "bottomright",
-                group = "Occup. prob.") %>%
+                group = "Cum. exp.") %>%
       addLegend(data=spp_move_data(), 
                 pal = period_pal, 
                 values = ~get(input$model_period)[,species_params_vals$model_input_dist_type],
-                title = "\u00B9Mean daily occup. prob.",
+                title = "Mean cum. exp.",
                 labFormat = function(type, cuts, p) {
                   n = length(cuts)
-                  paste0(formatC(cuts[-n], digits = 2, format = "g"), " &ndash; ", formatC(cuts[-1], digits = 2, format = "g"))
+                  if (n == 1) {
+                    c("NOT MODELED")
+                  } else {
+                    paste0(formatC(cuts[-n], digits = 3, format = "g"), " &ndash; ", formatC(cuts[-1], digits = 3, format = "g"))
+                  }
+                  
                 },
-                position = "bottomright", group = "Occup. prob.")
+                position = "bottomright", group = "Cum. exp.")
 
   })
   
@@ -1625,7 +1627,7 @@ server <- function(input, output, session) {
         addEsriBasemapLayer(esriBasemapLayers$Oceans, autoLabels = TRUE) %>%
         addEsriFeatureLayer(
           #add BOEM renewable lease areas as a WFS
-          url = "https://services7.arcgis.com/G5Ma95RzqJRPKsWL/ArcGIS/rest/services/Wind_Lease_Boundaries__BOEM_/FeatureServer/0",
+          url = "https://services7.arcgis.com/G5Ma95RzqJRPKsWL/ArcGIS/rest/services/Wind_Lease_Boundaries__BOEM_/FeatureServer/8",
           weight = 1, fill=FALSE, color = "yellow",#"#808080", #gray
           layerId = "BOEM_wind_leases",
           group = "BOEM wind leases") %>%
@@ -1667,7 +1669,7 @@ server <- function(input, output, session) {
         setView(lat = mean(wind_farm_df()$Latitude), lng = mean(wind_farm_df()$Longitude), zoom = 6) %>%
         #Layers control
         addLayersControl(
-          overlayGroups = c("Wind farm", "BOEM wind leases", "BOEM wind planning areas"), #, "Occup. prob."), #, "CI range"),
+          overlayGroups = c("Wind farm", "BOEM wind leases", "BOEM wind planning areas"), #, "Cum. exp."), #, "CI range"),
           position = "topright", #"topleft",
           options = layersControlOptions(collapsed = TRUE)
         )
