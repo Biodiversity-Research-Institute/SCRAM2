@@ -49,6 +49,7 @@
 # 05 Jun 24 - 2.1.1 - Added Motus study area outline, fixed instruction text, minor plot adjustments.
 # 07 Jun 24 - 2.1.2 - Updated avoidance values to mean between two estimates.
 # 26 Jun 24 - 2.1.3 - Changed monthly mean values for cum. exposure to be in line with report.
+# 28 Jun 24 - 2.1.4 - Minor update to REKN flight height model from telemetry data
 
 # load scripts
 source("scripts/helpers.R")
@@ -70,7 +71,8 @@ source("scripts/get_prop_crh_fhd_SCRAM.R")
 # "2.1.0 - Anthill Biquinho"
 # "2.1.1 - Breadcrumb Biquinho"
 # "2.1.2 - Catacomb Biquinho"
-SCRAM_version = "2.1.3 - Daffodil Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
+# "2.1.3 - Daffodil Biquinho"
+SCRAM_version = "2.1.4 - Effervescent Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
 
 options(shiny.trace = F)
 
