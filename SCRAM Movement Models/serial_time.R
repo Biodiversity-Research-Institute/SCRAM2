@@ -9,7 +9,7 @@ serial_time <- function(x, y){
     calendar <- cbind(c(1:31, 1:28, 1:31, 1:30, 1:31, 1:30, 1:31, 1:31, 1:30, 1:31, 1:30, 1:31),
                       c(rep(1, 1, 31), rep(2, 1, 28), rep(3, 1, 31), rep(4, 1, 30), rep(5, 1, 31), 
                         rep(6, 1, 30), rep(7, 1, 31), rep(8, 1, 31), rep(9, 1, 30), rep(10, 1, 31), 
-                        rep(11, 1, 30), rep(12, 1, 31)))
+                        rep(11, 1, 30), rep(12, 1, 31))) #day, month
     
     # days since the first detection (first detection is day 1)
     days_since <- mat.or.vec(length(x[,1]), 1)
@@ -23,7 +23,7 @@ serial_time <- function(x, y){
   }
   if(y == 'hour'){
     # create a matrix that indexes month, day, and hour for a non-leap year
-    daysinmo <- c(21, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+    daysinmo <- c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31) #31 days in Jan not 21
     temp2 <- NA
     temp3 <- NA
     for(i in 1:12){
@@ -36,7 +36,7 @@ serial_time <- function(x, y){
     }
     temp2 <- temp2[-1]
     temp3 <- temp3[-1]
-    calendar_byhour <- cbind(temp2, temp3, 1:24)
+    calendar_byhour <- cbind(temp2, temp3, 1:24) #day, month, hr
     
     # hours since the first detection (first detection is hour 1)
     hours_since <- mat.or.vec(length(x[,1]), 1)
