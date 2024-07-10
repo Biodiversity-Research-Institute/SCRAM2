@@ -3,8 +3,7 @@
 ### 3) use posterior estimates to obtain occupancy estimates for user-specified spatial units, and 
 ### 4) create simple plots showing mean and variance of results over space. 
 
-### Depending on which components are run, requires: 'false_pos_filter.R', 'remove_false_pos.R', 
-### 'remove_dup_bursts.R', 'serial_time.R', 'Pr_occupancy_season_trunc.R'
+### Depending on which components are run, requires: 'serial_time.R', 'Pr_occupancy_season_trunc.R'
 ##################################################################################################################################
 
 ###Authors: Holly Goyert, Evan Adams (BRI), Chris Field (URI)
@@ -20,7 +19,11 @@
 # ## - excludes Drift and relaxes assumption of covariance among error terms to independent normal variance for observed and estimated locations
 # ## - for Red Knots, retains only fall (southbound) migratory movements consistent with Loring et al. 2021, since birds tagged mid-spring migration in Delaware Bay, after crossing Atlantic OCS
 # ## - predicts all species only to study area containing active stations during study period (as USFWS recommended)
+# ## - replaces functions 'remove_dup_bursts.R' with faster code to:
 
+# ## 	- calculate and account for hourly interval increment (time step) calculations ('remove_dup_bursts.R'), 
+# ## - fits to "inc"-hourly increments in detections (avoids processing capacity/memory limitations)
+# ## - predicts to "inc"-hourly increments in regular time step interval
 # #R v4.3.1
 
 ## load required packages
@@ -41,30 +44,39 @@ usr.name <- 'user.name' #hard-coded (needs manual update)!
 dir.home <- file.path('C:', 'Users', usr.name, 'OneDrive - Biodiversity Research Institute', 'Documents') #Home directory (local)
 dir.root <- file.path(dir.home, 'ProjectsOffshoreWind', 'Atlantic', 'USFWS', 'SCRAM', 'BRI') #Root directory (local)
 
-dir.proj <- file.path(dir.root, 'Movement', 'SCRAM Movement Models') #Project directory
+dir.proj <- file.path(dir.root, 'Integrated Movement Models') #Project directory
 dir.data <- file.path(dir.proj, 'data') #GIS data directory
 
 dir.work <- dir.proj
-setwd(dir.work) # setwd <- dir.work #updated from "P:/SCRAM/BRI/Movement/SCRAM Movement Models"
+setwd(dir.work) # setwd <- dir.work 
 
-out.name <- 'rekn_2023' #name assigned to output files
-out.nam2 <- '_2021_1state_0D_var_n240' #hard-coded (needs manual update)! 
+spp <- 'REKN' #hard-coded (needs manual update)!
+inc <- 24 #hard-coded (needs manual update)! refers to the increment used to fit to detections and fit to regular interval increments
+out.name <- paste0(spp, '_2023') #name assigned to output files, refers to year Phase 2 started
+out.nam2 <- paste0('_2021_1state_0D_var_hr',inc) #hard-coded (needs manual update)! 
 #2021 refers the version of species data (release year, from Loring et al. 2021)
 #1state refers to the single state movement model
 #0D refers to the exclusion of a drift parameter
 #var refers to the conversion of the variance-covariance matrix to independent normal variance
 #n240 retains only fall migration (removes spring migratory trajectories prior to 6-28; keeps post 6-21)
 
-dir.create(file.path(dir.proj, paste0(out.name, out.nam2))) #subfolder for output files
-dir.out <- file.path(dir.proj, paste0(out.name, out.nam2)) #file.path(dir.proj, 'winter2023results', paste0(out.name, out.nam2))
+## to load/read data for JAGS from 1-state model ####
+N <- 240 #hard-coded (needs manual update)!
 
-#dir.local <- file.path('D:') #local data drive on high performance computer / server
+dir.out <- file.path(dir.proj, 'Motus Movement Models', spp, paste0(out.name, out.nam2)) #subfolder for output files
+dir.create(dir.out) #subfolder for output files
+
+#dir.local <- file.path('P:') #D:') #I:') #local data drive on high performance computer / server
 dir.local <- file.path('F:') #local data drive on high performance computer / server
-dir.local <- file.path(dir.local, 'SCRAM', 'BRI', 'Movement', 'SCRAM Movement Models') #create manually otherwise need to specify subfolder by subfolder
-dir.create(file.path(dir.local, paste0(out.name, out.nam2)))
+dir.create(file.path(dir.local, 'SCRAM')) #create manually otherwise need to specify subfolder by subfolder
+dir.create(file.path(dir.local, 'SCRAM', 'BRI')) #create manually otherwise need to specify subfolder by subfolder
+dir.create(file.path(dir.local, 'SCRAM', 'BRI', 'Integrated Movement Models')) #create manually otherwise need to specify subfolder by subfolder
+dir.create(file.path(dir.local, 'SCRAM', 'BRI', 'Integrated Movement Models', 'Motus Movement Models')) #create manually otherwise need to specify subfolder by subfolder
+dir.create(file.path(dir.local, 'SCRAM', 'BRI', 'Integrated Movement Models', 'Motus Movement Models', spp)) #create manually otherwise need to specify subfolder by subfolder
+dir.create(file.path(dir.local, 'SCRAM', 'BRI', 'Integrated Movement Models', 'Motus Movement Models', spp, paste0(out.name, out.nam2))) #create manually otherwise need to specify subfolder by subfolder
+dir.local <- file.path(dir.local, 'SCRAM', 'BRI', 'Integrated Movement Models', 'Motus Movement Models', spp, paste0(out.name, out.nam2)) #or create manually so don't need to specify subfolder by subfolder
 
 ## load/read (and combine) Motus data for species of interest in movement analyses ######################
-
 rekn <- readRDS(file.path(dir.data, 'Appendix_C_Motus_Detection_Data_REKN.rds'))
 allindvs <- rekn
 allindvs$id <- allindvs$tag_id
@@ -82,21 +94,24 @@ length(unique(allindvs$id))
 
 ## create columns for time variables for movement model ##########################################################################
 # create a new column for hour of detection with minutes represented by a decimal
-hours_dec <- round(as.numeric(substr(allindvs$ts_gmt, 12, 13)) + 
-                     (as.numeric(substr(allindvs$ts_gmt, 15, 16))/60), 2)
-allindvs <- cbind(allindvs, hours_dec)
+# hours_dec <- round(as.numeric(substr(allindvs$ts_gmt, 12, 13)) + #creates NA's for 00:00:00
+#                      (as.numeric(substr(allindvs$ts_gmt, 15, 16))/60), 2)
+allindvs$ts_gmt <- as.POSIXct(allindvs$ts_gmt, tz = "GMT", format = "%Y-%m-%d %H:%M:%S")
+allindvs$hours_dec <- round(as.numeric(format(allindvs$ts_gmt, format='%H')) + #avoids NA's for 00:00:00
+                     (as.numeric(format(allindvs$ts_gmt, format='%M'))/60), 2)
+#allindvs <- cbind(allindvs, hours_dec) #when re-running produces duplicate columns
 
 # create a new column for month
-month <- as.numeric(substr(allindvs$ts_gmt, 6, 7))
-allindvs <- cbind(allindvs, month)
+allindvs$month <- as.numeric(substr(allindvs$ts_gmt, 6, 7))
+#allindvs <- cbind(allindvs, month)
 
 # create a new column for day
-day <- as.numeric(substr(allindvs$ts_gmt, 9, 10))
-allindvs <- cbind(allindvs, day)
+allindvs$day <- as.numeric(substr(allindvs$ts_gmt, 9, 10))
+#allindvs <- cbind(allindvs, day)
 
 # create a new column for year
-year <- as.numeric(substr(allindvs$ts_gmt, 1, 4))
-allindvs<- cbind(allindvs, year)
+allindvs$year <- as.numeric(substr(allindvs$ts_gmt, 1, 4))
+#allindvs<- cbind(allindvs, year)
 
 # order the detections by individual, year, day, hour, and minute
 allindvs_ordered <- allindvs[order(allindvs$id, allindvs$year, substr(allindvs$ts_gmt, 6, 11)), ] #includes month-day only, though same as using hh-mm-ss
@@ -138,16 +153,48 @@ allindvs_ordered <- allindvs[order(allindvs$id, allindvs$year, substr(allindvs$t
 
 
 # remove duplicate detections by defining bursts as all detections within a 24-hour period
-source('remove_dup_bursts.R')
-### remove_dup_bursts() removes all duplicate detections within a burst, preserving only the first detection. 
+# source(file.path(dir.proj, 'remove_dup_bursts.R'))
+### remove_dup_bursts() removes all duplicate detections within a burst, preserving only the first detection.
 ### The burst can be defined as detections that occur within the same 24 hour period or hour.
 ### x is a data frame of detections and y is a string specifying whether bursts should be defined by 'day' or 'hour'
-allindvs_ordered_filtered_nodups <- remove_dup_bursts(allindvs_ordered, "day")
+# stime=Sys.time()
+# allindvs_ordered_filtered_nodups <- remove_dup_bursts(allindvs_ordered, 'hour') #can leave NA's
+# (evalTime = difftime(Sys.time(),stime)) #Time difference of 7m #slower than (tested that equal):
+
+# stime=Sys.time() #duplicative with below; remove in favor of interval calculation
+# allindvs_ordered$hours <- ceiling(allindvs_ordered$hours_dec) #round to nearest interval increment (floor, trunc, or as.integer; round produces different results)
+# allindvs_ordered_filtered_nodups1 <- allindvs_ordered[!duplicated(allindvs_ordered[,c('id', 'month', 'day', 'hours')]),] #retain only first detection of hour
+# (evalTime = difftime(Sys.time(),stime)) #Time difference of 0.5s (much faster)
+# # sum(allindvs_ordered_filtered_nodups1$hours_dec!=allindvs_ordered_filtered_nodups$hours_dec) #same as function
+
+## Remove duplicated hour increments and retain only first detection (default fromLast = FALSE) to fit to detections in intervals of hourly increments
+allindvs_ordered$hours_dec_inc <- ceiling(allindvs_ordered$hours_dec/inc) #round to nearest interval increment in single steps (floor, trunc, or as.integer vs. round produce different results)
+allindvs_ordered_filtered_nodups <- allindvs_ordered[!duplicated(allindvs_ordered[,c('id', 'month', 'day', 'hours_dec_inc')]),] #retain only first detection of hourly interval increment
+# sum(allindvs_ordered_filtered_nodups1$hours_dec!=allindvs_ordered_filtered_nodups2$hours_dec) #same as above
+nrow(allindvs_ordered_filtered_nodups)
+range(allindvs_ordered_filtered_nodups$hours_dec_inc)
+
+source(file.path(dir.proj, 'serial_time.R'))
+### serial_time() adds a column to the data frame for the number of days or hours since the first record in the data frame, by season (ignoring year)
+### x is the data frame to which to add the column, and y specifies 'days' or 'hours'
+stime=Sys.time()
+allindvs_ordered_filtered_nodups <- data.frame(allindvs_ordered_filtered_nodups)
+allindvs_ordered_filtered_nodups <- serial_time(allindvs_ordered_filtered_nodups, 'hour') #calculates by non-leap year (2016 is a leap year)
+(evalTime = difftime(Sys.time(),stime)) #Time difference of 15s
+
+## Prepare pre-filtered data structure for JAGS model ####
+str(allindvs_ordered_filtered_nodups) #use allindvs_ordered_filtered_nodups$hours_since-1 instead of allindvs_ordered_filtered_nodups$hours_dec_since
+allindvs_ordered_filtered_nodups$hours_since_inc <- ceiling((allindvs_ordered_filtered_nodups$hours_since-1 + inc)/inc) #round to nearest interval increment in single steps (floor, trunc, or as.integer; round produces different results) and add increment
+allindvs_ordered_filtered_nodups <- allindvs_ordered_filtered_nodups[!duplicated(allindvs_ordered_filtered_nodups[,c('id', 'month', 'day', 'hours_since_inc')]),] #predict to regular intervals in hourly increments
+range(allindvs_ordered_filtered_nodups$hours_since_inc) #includes added increment to start at 1; needs ceiling else 24th h given new value
+nrow(allindvs_ordered_filtered_nodups)
+
+(season_length <- max(allindvs_ordered_filtered_nodups$hours_since_inc))
 
 ## create variables for indexing the JAGS movement model (variable terminology as in Baldwin et al. 2018) #############################################
 # create a vector (Sind_obs) that references, for each individual, the position of the vector (for the observed data) that denotes its first detection
-id_index <- mat.or.vec(length(allindvs_ordered_filtered_nodups[,1]), 1)
-allindvs_ordered_filtered_nodups <- cbind(allindvs_ordered_filtered_nodups, id_index)
+allindvs_ordered_filtered_nodups$id_index <- mat.or.vec(length(allindvs_ordered_filtered_nodups[,1]), 1)
+#allindvs_ordered_filtered_nodups <- cbind(allindvs_ordered_filtered_nodups, id_index)
   # create an index for individual
 uni_inds <- unique(allindvs_ordered_filtered_nodups$id)
 Sind_obs <- unique(allindvs_ordered_filtered_nodups$id)
@@ -156,16 +203,6 @@ for(i in 1:length(uni_inds)){
   Sind_obs[i] <- min(which(allindvs_ordered_filtered_nodups$id==uni_inds[i]))
 }
 
-source('serial_time.R')
-### serial_time() adds a column to the data frame for the number of days or hours since the first record in the data frame
-### x is the data frame to which to add the column, and y specifies 'days' or 'hours'
-allindvs_ordered_filtered_nodups <- serial_time(allindvs_ordered_filtered_nodups, 'day')
-
-## Prepare pre-filtered data structure for JAGS model ####
-str(allindvs_ordered_filtered_nodups)
-
-season_length <- max(allindvs_ordered_filtered_nodups$days_since)
-
 # number of individuals
 (N <- length(uni_inds))
 
@@ -173,22 +210,22 @@ season_length <- max(allindvs_ordered_filtered_nodups$days_since)
 Xidx <- mat.or.vec(N, 1)
 # Xidx2 indexes the last day of the season, with respect to x, for each individual
 Xidx2 <- mat.or.vec(N, 1)
-# Xidx3 is used for posterior checks of movement model 
+# Xidx3 is used for posterior checks of movement model
 Xidx3 <- mat.or.vec(N, 1) #the day of the season that corresponds to each individual's last observation
 Zidx <- mat.or.vec(N, 1)  #the day of the season that corresponds to each individual's first observation
 for(i in 1:N){
-  Xidx[i] <- min(allindvs_ordered_filtered_nodups[allindvs_ordered_filtered_nodups$id==uni_inds[i], 'days_since']) + season_length*(i-1)
+  Xidx[i] <- min(allindvs_ordered_filtered_nodups[allindvs_ordered_filtered_nodups$id==uni_inds[i], 'hours_since_inc']) + season_length*(i-1)
   Xidx2[i] <- season_length*i
-  Xidx3[i] <- max(allindvs_ordered_filtered_nodups[allindvs_ordered_filtered_nodups$id==uni_inds[i], 'days_since'])
-  Zidx[i] <- min(allindvs_ordered_filtered_nodups[allindvs_ordered_filtered_nodups$id==uni_inds[i], 'days_since'])
+  Xidx3[i] <- max(allindvs_ordered_filtered_nodups[allindvs_ordered_filtered_nodups$id==uni_inds[i], 'hours_since_inc'])
+  Zidx[i] <- min(allindvs_ordered_filtered_nodups[allindvs_ordered_filtered_nodups$id==uni_inds[i], 'hours_since_inc'])
 }
 
-# create the idx file, which indexes for each observation, which "regular" day it is related to, 
+# create the idx file, which indexes for each observation, which "regular" day it is related to,
 # taking into account the fact that the data for all individuals is specified as one vector
 a <- 1
 for(i in 1:N){
   # season length * number of individuals already recorded is added to the days since the start of the season
-  a <- c(a, (allindvs_ordered_filtered_nodups[allindvs_ordered_filtered_nodups$id==uni_inds[i], 'days_since']+((season_length)*(i-1))))
+  a <- c(a, (allindvs_ordered_filtered_nodups[allindvs_ordered_filtered_nodups$id==uni_inds[i], 'hours_since_inc']+((season_length)*(i-1))))
 }
 idx <- a[-1]
 
@@ -219,6 +256,9 @@ lat_max <- max(y[,1]) + sd(y[,1])/3
 lon_min <- min(y[,2]) - sd(y[,2])/3
 lon_max <- max(y[,2]) + sd(y[,2])/3
 
+save.image(file.path(dir.proj, 'Motus Movement Models', spp, paste0('pre_proc_', out.name, '_hr', inc, '_n', N, '.RData'))) #save image of data processed prior to running model
+# load(file.path(dir.proj, 'Motus Movement Models', spp, paste0('pre_proc_', out.name, '_hr', inc, '_n', N, '.RData')))
+
 # number of iterations for the JAGS model
 # n.iter <- 200000
 # n.burnin <- 100000
@@ -226,9 +266,6 @@ n.iter <- 30000 #100 #20000
 n.burnin <- 30000 #10 #10000
 nc <- 3 #1
 n.thin <- 10 #5 #1 #reduce memory output		   
-
-save.image(file.path(dir.out, paste0('pre_proc_', out.name, '.RData'))) #save image of data processed prior to running model
-#load(file.path(dir.out, paste0('pre_proc_', out.name, '.RData')))
 
 ## run JAGS model ################################################################################################################
 # setwd("~/")
@@ -386,10 +423,10 @@ MOVE <- try(jags.parfit(cl=makePSOCKcluster(names=nc),
                            n.iter   = n.iter)) #not including burn in
 (evalTime = difftime(Sys.time(),stime)) #Time difference of 
 
-save(MOVE, file = file.path(dir.local, paste0(out.name, out.nam2), paste0(out.name, out.nam2,'.RData'))) #save to local data drive on high performance machine
+save(MOVE, file = file.path(dir.local, paste0(out.name, out.nam2,'.RData'))) #save to local data drive on high performance machine
 
-#load the movement model
-#load(file.path(dir.local, paste0(out.name, out.nam2), paste0(out.name, out.nam2,'.RData'))) #load from local data drive on high performance machine
+# #load the movement model
+#load(file.path(dir.local, paste0(out.name, out.nam2,'.RData'))) #load from local data drive on high performance machine
 
 # For output from jags.parfit ####
 # Check convergence on global params ###
@@ -436,6 +473,7 @@ N_bymonth #accounts for months with missing detections between first and last
 # for each time step of the movement model (columns), and for each individual (depth)
 posts_lat <- array(NA, c(n.iter/n.thin*nc, season_length, N))
 posts_lon <- array(NA, c(n.iter/n.thin*nc, season_length, N))
+options(scipen=100, digits=5) #can't have scientific notation for large indices
 
 stime=Sys.time() #using jags.parfit
 for(e in 1:N){
@@ -444,15 +482,15 @@ for(e in 1:N){
     posts_lon[,i,e] <- c(as.array(MOVE[,paste("x[", ((e-1)*season_length + i), "," , 2, "]", sep=""),]))
   }
 }
-(evalTime = difftime(Sys.time(),stime)) #Time difference of 2.4-5 mins
+(evalTime = difftime(Sys.time(),stime)) #Time difference of 15 mins
 
 #constrain the predictions to times with detections to avoid skew from including data past where we have detections
 
 start_x <- end_x <- c()
 for(i in 1:e){
 
-  start_x[i] <- allindvs_ordered_filtered_nodups$days_since[Yidx[i]]
-  end_x[i] <- allindvs_ordered_filtered_nodups$days_since[Yidx[i + 1] - 1] - allindvs_ordered_filtered_nodups$days_since[Yidx[i]] + 1
+  start_x[i] <- allindvs_ordered_filtered_nodups$hours_since_inc[Yidx[i]]
+  end_x[i] <- allindvs_ordered_filtered_nodups$hours_since_inc[Yidx[i + 1] - 1] - allindvs_ordered_filtered_nodups$hours_since_inc[Yidx[i]] + 1
 
 }
 
@@ -476,7 +514,7 @@ for(i in 1:e){
 # e.g. x_min($geometry) on polygons and $x on a .shp for centroids
 
 # BOEM.sf <- st_read(file.path(dir.data, 'BOEM_halfdeg_grid_latlon_2021')) #file path too long
-BOEM.sf <- st_read('P:/SCRAM/BRI/Movement/SCRAM Movement Models/data',
+BOEM.sf <- st_read('P:/SCRAM/BRI/Integrated Movement Models/data',
                    'BOEM_halfdeg_grid_latlon_2021')
 
 # ## Create bounding box based on active stations during study period (as USFWS recommended)
@@ -504,10 +542,12 @@ index <- nth(x,1)
 posts_latb <- posts_lat_t[sample(1:(n.iter/n.thin*nc), 1000), , ] #sample from multiple chains
 posts_lonb <- posts_lon_t[sample(1:(n.iter/n.thin*nc), 1000), , ] #sample from multiple chains
 
-source(file.path(dir.work, 'Pr_occupancy_season_trunc.R'))
 occ_post <- array(0, c(1000, 12, length(BOEM[,1])))
 
-stime=Sys.time() 
+allindvs_ordered_filtered_nodups$days_since <- allindvs_ordered_filtered_nodups$hours_since_inc #for 24h (daily) interval increments
+source(file.path(dir.proj, 'Pr_occupancy_season_trunc.R')) #not for subdaily time steps
+
+stime=Sys.time()
 for(z in 1:length(index)){
   #for(z in 1:1){
   lat_input_min <- BOEM$ymin[z]
@@ -516,7 +556,7 @@ for(z in 1:length(index)){
   lon_input_max <- BOEM$xmax[z]
   occ_post[, ,z] <- Pr_occupancy_season(posts_latb, posts_lonb, lat_input_min, lat_input_max, lon_input_min, lon_input_max, side, n.iter, N_bymonth, season_length, "time_step_bymo")
 }
-(evalTime = difftime(Sys.time(),stime)) #Time difference of ~25 mins.
+(evalTime = difftime(Sys.time(),stime)) #Time difference of up to ~55 mins
 
 saveRDS(occ_post, file.path(dir.out, paste0('occ_post_', out.name, '.rds'))) #this file gets converted into what SCRAM needs to assess movement uncertainty
 
@@ -563,10 +603,10 @@ ggplot() +
 dev.off()
 
 #plot time by ID
-dir.create(file.path(dir.out, paste0('occ_post_', out.name, '_med_ID')))
+dir.create(file.path(dir.local, paste0('occ_post_', out.name, '_med_ID')))
 
 for (i in 1:N) {
-  jpeg(filename = file.path(dir.out, paste0('occ_post_', out.name, '_med_ID'), 
+  jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_med_ID'), 
                             paste0('occ_post_', out.name, '_med_ID', uni_inds[i], '.jpg')), 
        height=7, width=5, units = "in", res=300) 
   med_ID <- ggplot() +
@@ -626,12 +666,12 @@ BOEM.sf <- cbind(BOEM.sf, occu_med, occu_sd, occu_cv)
 BOEM.sf$occu_med_mo <- apply(BOEM.sf$occu_med[,apply(BOEM.sf$occu_med, 2, sum, na.rm=TRUE)>0], 1, mean, na.rm=TRUE)
 summary(BOEM.sf$occu_med_mo)
 
-dir.create(file.path(dir.out, paste0('occ_post_', out.name, '_med_shp')))
-jpeg(filename = file.path(dir.out, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med.jpg')))
+dir.create(file.path(dir.local, paste0('occ_post_', out.name, '_med_shp')))
+jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med.jpg')))
 plot(na.omit(BOEM.sf["occu_med_mo"]), logz = TRUE)
 dev.off()
 
-st_write(BOEM.sf["occu_med_mo"], file.path(dir.out, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med.shp')), append=F)
+st_write(BOEM.sf["occu_med_mo"], file.path(dir.local, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med.shp')), append=F)
 
 #Plot all months
 for (m in which(N_bymonth>0)) {
@@ -647,8 +687,8 @@ for (m in which(N_bymonth>0)) {
 }
 
 for (m in which(N_bymonth>0)) {
-  dir.create(file.path(dir.out, paste0('occ_post_', out.name, '_X', m, '_med_shp')))
-  try(st_write(BOEM.sf[paste0('X', m, '')], file.path(dir.out, paste0('occ_post_', out.name, '_X', m, '_med_shp'), paste0('occ_post_', out.name, '_X', m, '_med.shp')), append=F))
+  dir.create(file.path(dir.local, paste0('occ_post_', out.name, '_X', m, '_med_shp')))
+  try(st_write(BOEM.sf[paste0('X', m, '')], file.path(dir.local, paste0('occ_post_', out.name, '_X', m, '_med_shp'), paste0('occ_post_', out.name, '_X', m, '_med.shp')), append=F))
 }
 
 save(occ_post, file=file.path(dir.out, paste0('occ_post_', out.name, '.RData')))
@@ -692,11 +732,20 @@ summary(BOEM.sf$occu_med_mo)
 
 BOEM.sf[!(BOEM.sf$top > 36.4914 & BOEM.sf$bottom < 42.2453),"occu_med_mo"] <- NA #reduce to study area
 
-jpeg(filename = file.path(dir.out, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med_N.jpg')))
+jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med_N.jpg')))
 plot(BOEM.sf["occu_med_mo"], logz = TRUE)
 dev.off()
 
-st_write(BOEM.sf["occu_med_mo"], file.path(dir.out, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med_N.shp')), append=F)
+st_write(BOEM.sf["occu_med_mo"], file.path(dir.local, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med_N.shp')), append=F)
 
 BOEM.sf <- BOEM.sf[BOEM.sf$top > 36.4914 & BOEM.sf$bottom < 42.2453,] #reduce to study area extent for mapping
-st_write(BOEM.sf["occu_med_mo"], file.path(dir.out, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med_studyarea.shp')), append=F)
+st_write(BOEM.sf["occu_med_mo"], file.path(dir.local, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med_studyarea.shp')), append=F)
+
+for (m in which(N_bymonth>0)) { 
+  dir.create(file.path(dir.local, paste0('occ_post_', out.name, '_', m, '_med_shp')))
+  try(st_write(BOEM.sf[paste0(m, '')], file.path(dir.local, paste0('occ_post_', out.name, '_', m, '_med_shp'), paste0('occ_post_', out.name, '_', m, '_med.shp')), append=F))
+  jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_', m, '_med.jpg')))
+  try(plot(BOEM.sf[paste0(m, '')], logz = TRUE))
+  dev.off()
+  print(summary(BOEM.sf[paste0(m, '')], na.rm=T))
+}

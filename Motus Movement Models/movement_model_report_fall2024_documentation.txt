@@ -1,19 +1,21 @@
-This documentation is intended to accompany the following scripts run for SCRAM 2.0.0:
-1. movement_model_report_addendum_feb2024_rekn.R
-2. movement_model_report_addendum_feb2024_pipl.R
-3. movement_model_report_addendum_feb2024_rost.R
+This documentation is intended to accompany the following scripts run for SCRAM v2.1.4:
+1. movement_model_report_addendum_feb2024_rekn.R renamed to movement_model_SCRAM2_1state_rekn.R
+2. movement_model_report_addendum_feb2024_pipl.R renamed to movement_model_SCRAM2_1state_pipl.R
+3. movement_model_report_addendum_feb2024_rost.R renamed to movement_model_SCRAM2_1state_rost.R
 
-The SCRAM 2.0.0 Tool is described in the accompanying BOEM Report Addendum (Goyert et al. 2024).
-The SCRAM 1.0.3 Tool is described in the accompanying 2022 BOEM report (Adams et al. 2022).
+The SCRAM v2.1.4 Tool is described in the accompanying 2024 BOEM Report (Goyert et al. 2024).
+The SCRAM v1.0.3 Tool is described in the accompanying 2022 BOEM report (Adams et al. 2022).
 
-The scripts source the following shared functions (~/scripts/):
-1. remove_dup_bursts.R
-2. serial_time.R
-3. Pr_occupancy_season_trunc.R
+The scripts source the following shared functions (~/SCRAM Movement Models/):
+1. serial_time.R
+2. Pr_occupancy_season_trunc.R
 
-The Piping Plover (_pipl.R) and Roseate Tern (_rost.R) scripts additionally source the following shared functions (~/scripts/):
-1. false_pos_filter.R
-2. remove_false_pos.R
+	The scripts no longer source the following shared functions (~/SCRAM Movement Models/):
+	1. remove_dup_bursts.R
+
+	The Piping Plover (_pipl.R) and Roseate Tern (_rost.R) scripts no longer source the following shared functions (~/SCRAM Movement Models/):
+	1. false_pos_filter.R
+	2. remove_false_pos.R
 
 The scripts source the following shared GIS data (~/data/):
 1. BOEM_halfdeg_grid_latlon_2021.shp contains georeferenced grid of 512 polygons on the Atlantic Outer Continental Shelf (other metadata no longer relevant)
@@ -39,9 +41,9 @@ References
 	Washington, DC: U.S. Department of the Interior, Bureau of Ocean Energy Management. 79 p. 
 	Report No.: OCS Study BOEM 2022-071. Contract No.: M19PG00023. Available at: https://espis.boem.gov/Final%20Reports/BOEM_2022-071.pdf 
 
-	Goyert HF, Adams EM, Gilbert A, Gulka J, Loring P, Williams, KA. 2024. 
-	Transparent Modeling of Collision Risk for Three Federally Listed Bird Species in Relation to 
-	Offshore Wind Energy Development: Report Addendum to Report No.: OCS Study BOEM 2022-07. 
+	Goyert HF, Adams EM, Gilbert A, Gulka J, Loring P, Stepanuk J, and Williams, KA. 2024. 
+	SCRAM 2: Transparent Modeling of Collision Risk for Three Federally Listed Bird Species in Relation to 
+	Offshore Wind Energy Development. 
 	Prepared by the Biodiversity Research Institute, Portland, ME and 
 	U.S. Fish and Wildlife Service, Charlestown, RI, for the 
 	U.S. Department of the Interior, Bureau of Ocean Energy Management, Washington, DC. 
