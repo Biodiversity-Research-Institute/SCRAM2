@@ -99,7 +99,7 @@ ui <- dashboardPage(
         icon('fa-solid fa-book', "fa-2x"),
         style = "padding-top: 10px; padding-bottom: 10px",
         target = '_blank',
-        href = "SCRAM_manual_v2_02_020824.pdf"),
+        href = "SCRAM_manual_v2-1-5_071124.pdf"),
       style = "float: left"
     ),
     tags$li(
@@ -354,7 +354,7 @@ ui <- dashboardPage(
             column(4,
                    fluidRow(
                             
-                              column(5, strong("Select the period to show for the occupancy map: ")),
+                              column(5, strong("Select the period to show for the species use map: ")),
                               column(7, 
                                      selectInput(
                                        inputId = "model_period",
@@ -1505,11 +1505,11 @@ server <- function(input, output, session) {
       addLegend(colors = c("slateblue"),
                 labels = c("Motus study area"),
                 position = "bottomright",
-                group = "Cum. exp.") %>%
+                group = "Cum. use.") %>%
       addLegend(data=spp_move_data(), 
                 pal = period_pal, 
                 values = ~get(input$model_period)[,species_params_vals$model_input_dist_type],
-                title = "Mean cum. exp.",
+                title = "Mean cum. use",
                 labFormat = function(type, cuts, p) {
                   n = length(cuts)
                   if (n == 1) {
