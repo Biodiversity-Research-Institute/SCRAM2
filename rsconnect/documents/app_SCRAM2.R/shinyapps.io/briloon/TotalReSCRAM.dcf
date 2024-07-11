@@ -5,7 +5,7 @@ account: briloon
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 9848180
-bundleId: 8211629
+bundleId: 8847961
 url: https://briloon.shinyapps.io/TotalReSCRAM/
 version: 1
 asMultiple: FALSE
