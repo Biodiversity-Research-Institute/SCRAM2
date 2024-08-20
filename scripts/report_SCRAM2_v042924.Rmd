@@ -852,7 +852,7 @@ for(s in 1:num_species){
                     lower = formatC(quantile(annual_summary$sum_monthly, c(0.025), na.rm=TRUE), digits=3, format="g"),
                     upper = formatC(quantile(annual_summary$sum_monthly, c(0.975), na.rm=TRUE), digits=3, format="g"))
     
-    annual_collision_rate_txt <- paste0("Total est. annual num. of collions (95 perc. prediction interval): ", annual_rate$mean, 
+    annual_collision_rate_txt <- paste0("Total est. annual num. of collisions (95 perc. prediction interval): ", annual_rate$mean, 
                                         " (", annual_rate$lower,", ", annual_rate$upper, ")")
     
     #determine max upper to give a bit more space to the y axis

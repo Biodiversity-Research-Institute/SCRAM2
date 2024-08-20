@@ -51,6 +51,7 @@
 # 26 Jun 24 - 2.1.3 - Changed monthly mean values for cum. exposure to be in line with report.
 # 28 Jun 24 - 2.1.4 - Minor update to REKN flight height model from telemetry data
 # 10 Jul 24 - 2.1.5 - Removed model options for REKN occupancy models defaulting to Ensemble, changed def. runs to 10k, added July ROST popn for SCRAM
+# 10 Jul 24 - 2.1.6 - Minor updates to rmarkdown figure caption and manual based on BOEM comments
 
 # load scripts
 source("scripts/helpers.R")
@@ -74,7 +75,9 @@ source("scripts/get_prop_crh_fhd_SCRAM.R")
 # "2.1.2 - Catacomb Biquinho"
 # "2.1.3 - Daffodil Biquinho"
 # "2.1.4 - Effervescent Biquinho" 
-SCRAM_version = "2.1.5 - Fervent Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
+# "2.1.5 - Fervent Biquinho"
+SCRAM_version = "2.1.6 - Glimmering Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
+
 
 options(shiny.trace = F)
 
@@ -99,7 +102,7 @@ ui <- dashboardPage(
         icon('fa-solid fa-book', "fa-2x"),
         style = "padding-top: 10px; padding-bottom: 10px",
         target = '_blank',
-        href = "SCRAM_manual_v2-1-5_071124.pdf"),
+        href = "SCRAM_manual_v2-1-6_082024.pdf"),
       style = "float: left"
     ),
     tags$li(
