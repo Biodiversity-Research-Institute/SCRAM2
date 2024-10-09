@@ -44,9 +44,9 @@ data_dir <- "data"
 #add disclaimer about potentially higher collision risk estimate due to inclusion of land 
 coastal_disclaimer <- "Cells that overlap land have higher collision estimates,\nas passage rate estimates include birds that are on land as well as overwater."
 
-#ATG - 010423 - updated lease area and planning area outlines from BOEM - version 8 from 111623
-BOEM_lease_outlines <- sf::read_sf("data/Wind_Lease_Outlines_11_16_2023.shp") %>% st_transform(3857)
-BOEM_planning_area_outlines <- sf::read_sf("data/BOEM_Wind_Planning_Area_Outlines_11_3_2023.shp") %>% st_transform(3857)
+#ATG - 010423 - updated lease area and planning area outlines from BOEM - 09 Oct 2024
+BOEM_lease_outlines <- sf::read_sf("data/BOEM_Wind_Lease_Outlines_06_06_2024.shp") %>% st_transform(3857)
+BOEM_planning_area_outlines <- sf::read_sf("data/BOEM_Wind_Planning_Area_Outlines_04_29_2024.shp") %>% st_transform(3857)
 states_sf <- sf::read_sf("data/statesp020.shp") %>% st_transform(3857)
 
 MotusStudyArea_sf <- read_sf("data/MotusStudyArea.shp") %>% st_transform(4326)
@@ -88,17 +88,30 @@ remove_shiny_inputs <- function(id, .input) {
 #function to create an east-west line of known lenght and center point a specified distance
 #center_pt_lat_long is the center of the line lat long values vector
 create_EW_line <- function(center_pt_lat_long, length_km){
-  west_pt = geosphere::destPointRhumb(center_pt_lat_long, b = -90, d = length_km * 1000)
-  east_pt = geosphere::destPointRhumb(center_pt_lat_long, b = 90, d = length_km * 1000)
-  coords = cbind(west_pt, east_pt)
-  EW_line = st_sfc(
+  west_pt <- geosphere::destPointRhumb(center_pt_lat_long, b = -90, d = length_km * 1000)
+  east_pt <- geosphere::destPointRhumb(center_pt_lat_long, b = 90, d = length_km * 1000)
+  coords <- cbind(west_pt, east_pt)
+  EW_line <- st_sfc(
     lapply(1:nrow(coords),
            function(i){
              sf::st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
            }))
   
-  EW_line =  sf::st_sf(EW_line, crs = sf::st_crs(4326))
+  EW_line <- sf::st_sf(EW_line, crs = sf::st_crs(4326))
   return(EW_line)
+}
+
+create_west_line <- function(center_pt_lat_long, length_km){
+  west_pt <- geosphere::destPointRhumb(center_pt_lat_long, b = -90, d = length_km * 1000)
+  coords <- cbind(west_pt, center_pt_lat_long)
+  west_line <- st_sfc(
+    lapply(1:nrow(coords),
+           function(i){
+             sf::st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
+           }))
+  
+  west_line <- sf::st_sf(west_line, crs = sf::st_crs(4326))
+  return(west_line)
 }
 
 #function to perform linear interpolation between two variables

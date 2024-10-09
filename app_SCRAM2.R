@@ -52,6 +52,7 @@
 # 28 Jun 24 - 2.1.4 - Minor update to REKN flight height model from telemetry data
 # 10 Jul 24 - 2.1.5 - Removed model options for REKN occupancy models defaulting to Ensemble, changed def. runs to 10k, added July ROST popn for SCRAM
 # 10 Jul 24 - 2.1.6 - Minor updates to rmarkdown figure caption and manual based on BOEM comments
+# 09 Oct 24 - 2.1.7 - Fixed issue where you fail to get the state due west when the location is close to shore; correct issue with identical turbine naming; update BOEM lease areas
 
 # load scripts
 source("scripts/helpers.R")
@@ -76,7 +77,9 @@ source("scripts/get_prop_crh_fhd_SCRAM.R")
 # "2.1.3 - Daffodil Biquinho"
 # "2.1.4 - Effervescent Biquinho" 
 # "2.1.5 - Fervent Biquinho"
-SCRAM_version = "2.1.6 - Glimmering Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
+#" 2.1.6 - Glimmering Biquinho"
+
+SCRAM_version = "2.1.7 - Hovering Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
 
 
 options(shiny.trace = F)
@@ -102,7 +105,7 @@ ui <- dashboardPage(
         icon('fa-solid fa-book', "fa-2x"),
         style = "padding-top: 10px; padding-bottom: 10px",
         target = '_blank',
-        href = "SCRAM_manual_v2-1-6_082024.pdf"),
+        href = "SCRAM_manual_v2-1-7_100924.pdf"),
       style = "float: left"
     ),
     tags$li(
@@ -1015,6 +1018,9 @@ server <- function(input, output, session) {
         ))
         return(NULL)
       } else {  #file header ok
+        #correct issue with identical turbine naming
+        wf_file$TurbineModel_MW <- make.unique(wf_file$TurbineModel_MW, sep = "-")
+
         Sys.sleep(2)  #wait until species data has rendered and then switch also helps with pre-rendering maps, etc.
         updateTabItems(session, inputId = "tabsetpan", selected = "wind_farm_panel")
         #return the inputted file
@@ -1077,34 +1083,53 @@ server <- function(input, output, session) {
   #set the migration corridor
   observe({
     req(!is.null(windfarm_loc$center) & !is.null(input$species_input))
+    
+    state_boundaries_ea <- st_transform(state_boundaries_wgs84, 9822) #from Package USA.state.boundaries 
+    windfarm_center_ea <- st_transform(windfarm_loc$center, 9822)
 
     #create the annex6 migration corridor line and split at migration corridor
     #create an extended line for processing corridor and getting closest state info
     EW_line <- create_EW_line(st_coordinates(windfarm_loc$center), length_km = 5000)
 
     annex6_vals$mig_corridor_line <- EW_line %>% 
-      lwgeom::st_split(spp_corridor()) %>% st_intersection(spp_corridor())
+      lwgeom::st_split(spp_corridor()) %>% 
+      st_intersection(spp_corridor())
 
     #calculate migration corridor width at the wind farm in km, convert to equal area proj first
     annex6_vals$migr_front_km <- round(as.numeric(st_length(st_transform(annex6_vals$mig_corridor_line, crs = 9822))) / 1000, 0) #Albers equal area conic proj
     output$migr_front_width <- renderText(paste("Migratory front width:",  annex6_vals$migr_front_km, "km"))
-    # sf::write_sf(annex6_vals$mig_corridor_line, "mig_corridor_line.shp", )
+    # sf::write_sf(annex6_vals$mig_corridor_line, "mig_corridor_line.shp",  delete_dsn = T)
     
+    # Create a westward line from the project to intersect the state due westward, this is snipped to the corridor 
+    # Because the corridor boundary for species may be coarse (PIPL, ROST), the states may vary from that selected for REKN which
+    # is inland for this species
+    mig_corridor_line_west_ea <- create_west_line(st_coordinates(windfarm_loc$center), length_km = 5000) %>% 
+      lwgeom::st_split(spp_corridor()) %>% 
+      st_intersection(spp_corridor()) %>% 
+      st_transform(9822)
+
     # Split the line on the state boundaries to get a series of split lines for which the centroid of these allow us to determine the closest
     # section to the start of the line and thus the section of state closest west of the wind farm. 
-    line_seg_centers <- lwgeom::st_split(EW_line, state_boundaries_wgs84) %>% st_cast() %>% st_centroid()
+    line_seg_centers_W_ea <- lwgeom::st_split(mig_corridor_line_west_ea, state_boundaries_ea) %>% 
+      st_cast() %>% 
+      st_centroid() %>% 
+      st_intersection(state_boundaries_ea)  #intersect with states layer to get only those within a state
     
-    nearest_seg_center <- line_seg_centers[(nngeo::st_nn(windfarm_loc$center, line_seg_centers)[[1]]), ]
+    # Grab nearest location in a state
+    nearest_seg_center_W_ea <- line_seg_centers_W_ea[(nngeo::st_nn(windfarm_center_ea, line_seg_centers_W_ea)[[1]]), ]
+    
     # Error in wk_handle.wk_wkb(wkb, s2_geography_writer(oriented = oriented,  : 
     # Loop 3 is not valid: Edge 30 h
     # https://github.com/r-spatial/sf/issues/1902
     sf_use_s2(FALSE) #Spherical geometry (s2) switched off
     
-    annex6_vals$nearest_state_due_W <- state_boundaries_wgs84[st_intersects(state_boundaries_wgs84, nearest_seg_center, sparse = F), ]$NAME
+    # Get the sate name that is due west for calculating popn as well as reporting out
+    annex6_vals$nearest_state_due_W <- state_boundaries_ea[st_intersects(state_boundaries_ea, nearest_seg_center_W_ea, sparse = F), ]$NAME
+    
     output$nearest_state <- renderText(paste("Nearest coastal state due west:",  annex6_vals$nearest_state_due_W))
     
-    #now derive list of coastal locations including and north of the state selected
-    #ATG - fixed issue where multiple states selected with grep if for example Virginia is in mult. states
+    # Derive list of coastal locations including and north of the state selected
+    # Fixed issue where multiple states selected with grep if for example Virginia is in mult. states
     annex6_vals$coastal_locations <- get(paste0(state.abb[grep(paste0("^(",annex6_vals$nearest_state_due_W, ")$"), state.name)], "_states_north"))
     
     #set the filter location for population data
