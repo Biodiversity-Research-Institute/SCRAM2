@@ -5,7 +5,7 @@
 #' number of in-flight collisions per month of a seabird species on a given
 #' offshore windfarm, for a choice of model options.
 #' Modified slightly to accommodate BRI SCRAM migratory flux calculations based
-#' on Band 2012 Annex 6
+#' on Band 2012 Annex 6. Also used custom validation.
 #'
 #' Calculations are equivalent to those performed on the original CRM
 #' [spreadsheet](https://www.bto.org/sites/default/files/u28/downloads/Projects/Final_Report_SOSS02_Band2Tool.xlsm),
@@ -264,7 +264,7 @@ band_SCRAM <- function(model_options = c('1', '2', '3', '4'),
     flight_type <- tolower(flight_type)
     
     ## input validation 2: input formatting
-    validate_inputs(
+    validate_inputs_SCRAM(
       model_options = model_options,
       flight_speed = flight_speed,
       body_lt = body_lt,

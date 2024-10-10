@@ -17,10 +17,8 @@ library(pracma)
 library(rcmdcheck)
 library(sp)
 library(sf)
-# library(rgdal)
 library(geosphere)
 library(readr)
-# library(rgeos)
 library(htmltools)
 library(rmarkdown)
 library(fs)
@@ -48,6 +46,11 @@ coastal_disclaimer <- "Cells that overlap land have higher collision estimates,\
 BOEM_lease_outlines <- sf::read_sf("data/BOEM_Wind_Lease_Outlines_06_06_2024.shp") %>% st_transform(3857)
 BOEM_planning_area_outlines <- sf::read_sf("data/BOEM_Wind_Planning_Area_Outlines_04_29_2024.shp") %>% st_transform(3857)
 states_sf <- sf::read_sf("data/statesp020.shp") %>% st_transform(3857)
+
+# buffer the state layer for intersection with corridors because the coastal outline for migration corridors is very crude and 
+# sometimes lands in the water with no state assignment.
+state_boundaries_ea <- st_transform(state_boundaries_wgs84, 9822) %>%  #from Package USA.state.boundaries 
+  st_buffer(dist = 4000)
 
 MotusStudyArea_sf <- read_sf("data/MotusStudyArea.shp") %>% st_transform(4326)
 MotusStudyArea_sf$studyarea = "Motus study area"

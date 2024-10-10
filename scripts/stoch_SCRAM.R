@@ -324,7 +324,7 @@ stoch_SCRAM <- function(model_options = c('1', '2', '3', '4'),
   # Input Format Validation ----------------------------------------------------------
   if(verbose) cli::cli_progress_step("Checking inputs", spinner = TRUE)
   
-  validate_inputs(
+  validate_inputs_SCRAM(
     model_options = model_options,
     n_iter = n_iter,
     flt_speed_pars = flt_speed_pars,

@@ -39,11 +39,15 @@
 # 01 Mar 23 - 1.0.2 - add coastal flag as dialog box and report warning.
 # 09 Mar 23 - 1.0.3 - removed coastal flag and modified the number of animals in a model cell by  multiplying by the proportion of transient animals
 # to reduce the effect of coastal staging animals on risk.
-# 17 Aug 23 - 2.0 - modify SCRAM to use StochLab package and it's functions for calculating crm modified to accept annex 6 migrant flux calculations based on movement data; Also now using RPM data vs. wind speed data in the calcs requiring changing the example input files
+# 17 Aug 23 - 2.0 - modify SCRAM to use StochLab package and it's functions for calculating crm modified to accept annex 6 migrant flux calculations based on movement data; 
+#  Also now using RPM data vs. wind speed data in the calcs requiring changing the example input files
 # 16 Nov 23 - updated species popn data to harmonize between Band 2012 Annex 6 and SCRAM
 # 09 Jan 2023 Added update models with additional tags under vers 2.0 to include additional tags not available for version 1. 
-# 19 Jan 24 - 2.0.1 - discovered an issue where the proportions within flight bands were not being accurately accounted for when you had a fhd that was not smooth. This led to discovery of fixed yinc values within get_collisions_extended function of stochLAB. Created our own version to account for changing yinc values. Other minor bug fixes with reporting. Added basic avoidance values.
-# 06 Feb 24 - 2.0.2 - in some cases, with PIPL output is very skewed by small number of very large collision esimates which leads to means falling outside of 95% range suggesting not appropriate to use mean as central tendency, changed to providing median. Also added an input file check to see if csv and had correct headers.
+# 19 Jan 24 - 2.0.1 - discovered an issue where the proportions within flight bands were not being accurately accounted for when you had a fhd that was not smooth. 
+#  This led to discovery of fixed yinc values within get_collisions_extended function of stochLAB. Created our own version to account for changing yinc values. 
+#  Other minor bug fixes with reporting. Added basic avoidance values.
+# 06 Feb 24 - 2.0.2 - in some cases, with PIPL output is very skewed by small number of very large collision estimates which leads to means falling outside of 95% range 
+#  suggesting not appropriate to use mean as central tendency, changed to providing median. Also added an input file check to see if csv and had correct headers.
 # 28 Apr 24 - 2.0.3 - fix some report issues and also address results figure not changing between runs
 # 17 May 24 - 2.1.0 - Brought in newest models using GPS/Argos data for REKN and changed the model input to SF type with array to hold for more compact storage
 # 05 Jun 24 - 2.1.1 - Added Motus study area outline, fixed instruction text, minor plot adjustments.
@@ -52,7 +56,8 @@
 # 28 Jun 24 - 2.1.4 - Minor update to REKN flight height model from telemetry data
 # 10 Jul 24 - 2.1.5 - Removed model options for REKN occupancy models defaulting to Ensemble, changed def. runs to 10k, added July ROST popn for SCRAM
 # 10 Jul 24 - 2.1.6 - Minor updates to rmarkdown figure caption and manual based on BOEM comments
-# 09 Oct 24 - 2.1.7 - Fixed issue where you fail to get the state due west when the location is close to shore; correct issue with identical turbine naming; update BOEM lease areas
+# 09 Oct 24 - 2.1.7 - Fixed issue where you fail to get the state due west when the location is close to shore; correct issue with identical turbine naming; 
+#  update BOEM lease areas; fixed validation issue with <1km WF and issue with crude coastal boundary when trying to assign state
 
 # load scripts
 source("scripts/helpers.R")
@@ -60,6 +65,7 @@ source("scripts/utils.R")
 source("scripts/get_mig_flux_SCRAM.R")
 source("scripts/band_SCRAM.R")
 source("scripts/stoch_SCRAM.R")
+source("scripts/validate_inputs_SCRAM.R")
 source("scripts/generate_rotor_grids_SCRAM.R")
 source("scripts/crm_opt3_SCRAM.R")
 source("scripts/get_collisions_extended_SCRAM.R") 
@@ -1084,7 +1090,6 @@ server <- function(input, output, session) {
   observe({
     req(!is.null(windfarm_loc$center) & !is.null(input$species_input))
     
-    state_boundaries_ea <- st_transform(state_boundaries_wgs84, 9822) #from Package USA.state.boundaries 
     windfarm_center_ea <- st_transform(windfarm_loc$center, 9822)
 
     #create the annex6 migration corridor line and split at migration corridor
@@ -1098,7 +1103,6 @@ server <- function(input, output, session) {
     #calculate migration corridor width at the wind farm in km, convert to equal area proj first
     annex6_vals$migr_front_km <- round(as.numeric(st_length(st_transform(annex6_vals$mig_corridor_line, crs = 9822))) / 1000, 0) #Albers equal area conic proj
     output$migr_front_width <- renderText(paste("Migratory front width:",  annex6_vals$migr_front_km, "km"))
-    # sf::write_sf(annex6_vals$mig_corridor_line, "mig_corridor_line.shp",  delete_dsn = T)
     
     # Create a westward line from the project to intersect the state due westward, this is snipped to the corridor 
     # Because the corridor boundary for species may be coarse (PIPL, ROST), the states may vary from that selected for REKN which
@@ -1107,9 +1111,13 @@ server <- function(input, output, session) {
       lwgeom::st_split(spp_corridor()) %>% 
       st_intersection(spp_corridor()) %>% 
       st_transform(9822)
+    
+    # sf::write_sf(mig_corridor_line_west_ea, "mig_corridor_line_west_ea.shp",  delete_dsn = T)
 
     # Split the line on the state boundaries to get a series of split lines for which the centroid of these allow us to determine the closest
     # section to the start of the line and thus the section of state closest west of the wind farm. 
+    # buffer the state layer for intersection with corridors because the coastal outline for migration corridors is very crude and 
+    # sometimes lands in the water with no state assignment.
     line_seg_centers_W_ea <- lwgeom::st_split(mig_corridor_line_west_ea, state_boundaries_ea) %>% 
       st_cast() %>% 
       st_centroid() %>% 
