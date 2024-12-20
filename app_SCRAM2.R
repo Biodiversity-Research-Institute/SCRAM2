@@ -687,7 +687,7 @@ server <- function(input, output, session) {
   #load movement models for calculations and visualization
   spp_move_data <- reactive({
     req(input$migration_calc_type == "occup_model" & length(input$species_input) > 0 & length(species_params_vals$model_input_dist_type) > 0)
-    readRDS(paste0("data/movements/", input$species_input, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble_112524.RDS"))
+    readRDS(paste0("data/movements/", input$species_input, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS"))
   })
   
   output$species_data <-
