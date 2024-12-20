@@ -58,6 +58,7 @@
 # 10 Jul 24 - 2.1.6 - Minor updates to rmarkdown figure caption and manual based on BOEM comments
 # 09 Oct 24 - 2.1.7 - Fixed issue where you fail to get the state due west when the location is close to shore; correct issue with identical turbine naming; 
 #  update BOEM lease areas; fixed validation issue with <1km WF and issue with crude coastal boundary when trying to assign state
+# 20 Dec 24 - 2.1.8 - SCRAM v2.1.8 reassigns 11 duplicate tag IDs for Roseate Terns, reassigns 10 duplicate tag IDs for Piping Plovers, and removes 2 static Piping Plovers with long, uninformed data gaps
 
 # load scripts
 source("scripts/helpers.R")
