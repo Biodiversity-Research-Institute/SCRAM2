@@ -52,16 +52,16 @@ setwd(dir.work) # setwd <- dir.work
 
 spp <- 'PIPL' #hard-coded (needs manual update)!
 inc <- 24 #hard-coded (needs manual update)! refers to the increment used to fit to detections and fit to regular interval increments
+N <- 115 #hard-coded (needs manual update)!
+
 out.name <- paste0(spp, '_2023') #name assigned to output files, refers to year Phase 2 started
-out.nam2 <- paste0('_2018_1state_0D_var_hr',inc) #hard-coded (needs manual update)! 
+out.nam2 <- paste0('_2018_1state_0D_var_hr',inc, '_n', N) #hard-coded (needs manual update)! 
 #2018 refers the version of species data (release year, from Loring et al. 2019)
 #1state refers to the single state movement model
 #0D refers to the exclusion of a drift parameter
 #var refers to the conversion of the variance-covariance matrix to independent normal variance
 
 ## to load/read data for JAGS from 1-state model ####
-N <- 107 #hard-coded (needs manual update)!
-
 dir.out <- file.path(dir.proj, 'Motus Movement Models', spp, paste0(out.name, out.nam2)) #subfolder for output files
 dir.create(dir.out) #subfolder for output files
 
@@ -115,6 +115,18 @@ allindvs$year <- as.numeric(substr(allindvs$ts_gmt, 1, 4))
 
 # order the detections by individual, year, day, hour, and minute
 allindvs_ordered <- allindvs[order(allindvs$id, allindvs$year, substr(allindvs$ts_gmt, 6, 11)), ] #includes month-day only, though same as using hh-mm-ss
+
+## reassign ids with duplicate tags ####
+unique(allindvs_ordered[,c('id', 'aux', 'year')])[ #'depDate', 'depLoc', 'sex', 'age' make no difference
+  duplicated(unique(allindvs_ordered[,c('id', 'aux', 'year')])$id, fromLast=T) | 
+  duplicated(unique(allindvs_ordered[,c('id', 'aux', 'year')])$id, fromLast=F),]
+allindvs_ordered$id <- as.numeric(paste0(allindvs_ordered$year,allindvs_ordered$id)) #reassign duplicate tags to differentiate id's by year
+length(unique(allindvs_ordered$id)) #n=117 after filtering
+
+## remove individual(s) with long gap between few detections at adjacent stations
+allindvs_ordered <- allindvs_ordered[allindvs_ordered$id!=2017248,] #remove because of data gap 36d apart between adjacent stations (mnyn and mnys) #n=116 after filtering
+allindvs_ordered <- allindvs_ordered[allindvs_ordered$id!=2017257,] #remove because of data gap 35d apart between adjacent stations (mnyn and mnys) #n=115 after filtering
+length(unique(allindvs_ordered$id))
 
 ### FILTERING ####
 ## pass data through filters for false positives, duplicate bursts, and stationary individuals ###################################
@@ -283,6 +295,13 @@ lon_max <- max(y[,2]) + sd(y[,2])/3
 
 save.image(file.path(dir.proj, 'Motus Movement Models', spp, paste0('pre_proc_', out.name, '_hr', inc, '_n', N, '.RData'))) #save image of data processed prior to running model
 # load(file.path(dir.proj, 'Motus Movement Models', spp, paste0('pre_proc_', out.name, '_hr', inc, '_n', N, '.RData')))
+# 
+# allindvs_ordered_filtered_nodups$diffdays <- c(NA, difftime(allindvs_ordered_filtered_nodups[-1,]$ts_gmt,
+#          allindvs_ordered_filtered_nodups[-nrow(allindvs_ordered_filtered_nodups),]$ts_gmt,
+#          units="days"))
+# allindvs_ordered_filtered_nodups$diffdays[!duplicated(allindvs_ordered_filtered_nodups$id)] <- NA
+# 
+# write.csv(allindvs_ordered_filtered_nodups, file=file.path(dir.proj, 'Motus Movement Models', spp, paste0('pre_proc_', out.name, '_hr', inc, '_n', N, '.csv'))) #save csv of data processed prior to running model
 
 # number of iterations for the JAGS model
 # n.iter <- 200000
@@ -583,7 +602,7 @@ for(z in 1:length(index)){
 }
 (evalTime = difftime(Sys.time(),stime)) #Time difference of up to ~55 mins
 
-saveRDS(occ_post, file.path(dir.out, paste0('occ_post_', out.name, '.rds'))) #this file gets converted into what SCRAM needs to assess movement uncertainty
+saveRDS(occ_post, file.path(dir.local, paste0('occ_post_', out.name, '.rds'))) #this file gets converted into what SCRAM needs to assess movement uncertainty
 
 ## Map/visualize posterior results ####
 
@@ -620,7 +639,7 @@ dev.off()
 
 bb <- st_bbox(x_id)
 
-jpeg(filename = file.path(dir.out, paste0('occ_post_', out.name, '_med_ID.jpg')))
+jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_med_ID.jpg')))
 ggplot() +
   geom_sf(data = ocean)  +
   geom_sf(data = x_id, aes(col = ID)) + coord_sf(xlim = bb[c(1,3)], ylim = bb[c(2,4)], expand = T) + 
@@ -658,7 +677,7 @@ dev.off()
 
 bb <- st_bbox(x_id)
 
-jpeg(filename = file.path(dir.out, paste0('occ_post_', out.name, '_97_5_ID.jpg')))
+jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_97_5_ID.jpg')))
 ggplot() +
   geom_sf(data = ocean)  +
   geom_sf(data = x_id, aes(col = ID)) + coord_sf(xlim = bb[c(1,3)], ylim = bb[c(2,4)], expand = T) + 
@@ -671,7 +690,7 @@ hist(occ_post, breaks = length(seq(from=0,to=max(occ_post, na.rm=T),by=0.01)), f
 hist(occ_post, breaks = length(seq(from=0,to=1,by=0.001)), xlim=c(0,1), freq=F)
 dev.off()
 
-jpeg(filename = file.path(dir.out, paste0('occ_post_', out.name, '_hist.jpg')))
+jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_hist.jpg')))
 hist(occ_post, breaks = length(seq(from=0,to=0.1,by=0.0001)), xlim=c(0,0.1), freq=F, 
      xlab="Cumulative Daily Occupancy (Truncated)", main="SCRAM 2.0") #title hard-coded (needs manual update)!
 dev.off()
@@ -700,13 +719,13 @@ st_write(BOEM.sf["occu_med_mo"], file.path(dir.local, paste0('occ_post_', out.na
 
 #Plot all months
 for (m in which(N_bymonth>0)) {
-  jpeg(filename = file.path(dir.out, paste0('occ_post_', out.name, '_X', m, '_med.jpg')))
+  jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_X', m, '_med.jpg')))
   try(plot(BOEM.sf[paste0('X', m, '')], logz = TRUE))
   dev.off()
-  jpeg(filename = file.path(dir.out, paste0('occ_post_', out.name, '_X', m, '_sd.jpg')))
+  jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_X', m, '_sd.jpg')))
   try(plot(BOEM.sf[paste0('X', m, '.1')]))
   dev.off()
-  jpeg(filename = file.path(dir.out, paste0('occ_post_', out.name, '_X', m, '_cv.jpg')))
+  jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_X', m, '_cv.jpg')))
   try(plot(BOEM.sf[paste0('X', m, '.2')], logz = TRUE))
   dev.off() 
 }
@@ -716,14 +735,14 @@ for (m in which(N_bymonth>0)) {
   try(st_write(BOEM.sf[paste0('X', m, '')], file.path(dir.local, paste0('occ_post_', out.name, '_X', m, '_med_shp'), paste0('occ_post_', out.name, '_X', m, '_med.shp')), append=F))
 }
 
-save(occ_post, file=file.path(dir.out, paste0('occ_post_', out.name, '.RData')))
-#load(file=file.path(dir.out, paste0('occ_post_', out.name, '.RData')))
+save(occ_post, file=file.path(dir.local, paste0('occ_post_', out.name, '.RData')))
+#load(file=file.path(dir.local, paste0('occ_post_', out.name, '.RData')))
 
 ## From create_baked_files_CRM.R
 #after runing the species specific movement data analysis script to get occ_post:
 monthLabels <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",  "Aug", "Sep", "Oct", "Nov", "Dec")
 
-dir.create(file.path(dir.out, "movements2_0"))
+dir.create(file.path(dir.local, "movements2_0"))
 
 #Remove months with five or less tracked individuals for collision risk estimation 
 #Assign NA's to grid cells outside study area
@@ -732,11 +751,11 @@ occ_post[,N_bymonth<=N_thresh,] <- NA #updated to soft-code: months without dete
 occ_post[,,which(!(BOEM.sf$top > 36.4914 & BOEM.sf$bottom < 42.2453))] <- NA #updated to soft-code: grid cells outside study area
 colnames(occ_post) <- monthLabels
 
-save(occ_post, file=file.path(dir.out, paste0('occ_post_', out.name, '_studyarea', '.RData')))
-#load(file=file.path(dir.out, paste0('occ_post_', out.name, '_studyarea', '.RData')))
+save(occ_post, file=file.path(dir.local, paste0('occ_post_', out.name, '_studyarea', '.RData')))
+#load(file=file.path(dir.local, paste0('occ_post_', out.name, '_studyarea', '.RData')))
 
 for(i in 1:length(occ_post[1,1,])){
-  write.csv(occ_post[,,i], file=file.path(dir.out, "movements2_0", paste0("MovementBaked_", out.name, "_", i, ".csv")), row.names=FALSE)
+  write.csv(occ_post[,,i], file=file.path(dir.local, "movements2_0", paste0("MovementBaked_", out.name, "_", i, ".csv")), row.names=FALSE)
 }
 
 #Recalculate cumulative daily occupancy  averaged across only months meeting sample size threshold 
@@ -766,7 +785,7 @@ st_write(BOEM.sf["occu_med_mo"], file.path(dir.local, paste0('occ_post_', out.na
 BOEM.sf <- BOEM.sf[BOEM.sf$top > 36.4914 & BOEM.sf$bottom < 42.2453,] #reduce to study area extent for mapping
 st_write(BOEM.sf["occu_med_mo"], file.path(dir.local, paste0('occ_post_', out.name, '_med_shp'), paste0('occ_post_', out.name, '_med_studyarea.shp')), append=F)
 
-for (m in which(N_bymonth>0)) { 
+for (m in monthLabels[which(N_bymonth>0)]) { 
   dir.create(file.path(dir.local, paste0('occ_post_', out.name, '_', m, '_med_shp')))
   try(st_write(BOEM.sf[paste0(m, '')], file.path(dir.local, paste0('occ_post_', out.name, '_', m, '_med_shp'), paste0('occ_post_', out.name, '_', m, '_med.shp')), append=F))
   jpeg(filename = file.path(dir.local, paste0('occ_post_', out.name, '_', m, '_med.jpg')))
@@ -774,3 +793,63 @@ for (m in which(N_bymonth>0)) {
   dev.off()
   print(summary(BOEM.sf[paste0(m, '')], na.rm=T))
 }
+
+## Output to RShiny
+## Script to take species output from one-state model (SCRAM 2) and place into SF 
+#  (to combine with GPS model outputs into ensemble, in the case of REKN)
+
+str(occ_post)
+#num [1:1000, 1:12, 1:512]
+#iterations, months, grid cells
+
+## load Andrew's shapefile ####
+occup_BOEM_halfdeg_grid_aea_sf <- readRDS(file.path('P:', 'SCRAM', 'BRI', 'Movement', 'SCRAM Movement Models', 'occup_BOEM_halfdeg_grid_aea_sf.RDS'))
+str(occup_BOEM_halfdeg_grid_aea_sf)
+# Classes ‘sf’ and 'data.frame':	512 obs. of  18 variables:
+
+monthLabels <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",  "Aug", "Sep", "Oct", "Nov", "Dec")
+
+dim(occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][['Jan']])
+dim(occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][[1]]) #same
+#512    3 1000
+#cell,mod,iteration
+
+dim(occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][[1]]) #array
+dim(occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][1]) #data.frame (first values of array dimensions & geometry)
+#512   2
+
+sum(occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][[7]][,1,1]!= #same
+      st_drop_geometry(occup_BOEM_halfdeg_grid_aea_sf[,monthLabels])[,7][,1,1], na.rm=T)
+
+occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][7]
+occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][,7] #should be same?
+
+dim(occup_BOEM_halfdeg_grid_aea_sf[,monthLabels]) #contains geometry as 13
+#512  13
+
+dim(occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][['Jan']][,1,]) #first model (Motus)
+#512 1000
+
+dim(t(occ_post[,1,])) #Jan
+#512 1000
+
+for (i in 1:length(monthLabels)) {
+  occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][[i]][,1,] <- t(occ_post[,i,])
+}
+
+#calculate mean across iterations and models for months with data/predictions
+m=7 #test
+dim(apply(occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][[m]], c(1,2), function(x) mean(x, na.rm = TRUE)))
+#512   3
+occup_BOEM_halfdeg_grid_aea_sf_mean <- occup_BOEM_halfdeg_grid_aea_sf
+
+for (m in which(rowSums(apply(occ_post, c(2,3), function(x) sum(x, na.rm = TRUE)), na.rm = TRUE)>0)) {
+  occup_BOEM_halfdeg_grid_aea_sf_mean[,monthLabels][[m]][,,1] <- apply(occup_BOEM_halfdeg_grid_aea_sf[,monthLabels][[m]], c(1,2), function(x) mean(x, na.rm = TRUE))
+}
+
+#Plot months with data/predictions (need mean otherwise plots first of 1000 iterations)
+for (m in which(rowSums(apply(occ_post, c(2,3), function(x) sum(x, na.rm = TRUE)), na.rm = TRUE)>0)) {
+  plot(occup_BOEM_halfdeg_grid_aea_sf_mean[,monthLabels][m], logz = TRUE)
+}
+
+saveRDS(occup_BOEM_halfdeg_grid_aea_sf, file.path('P:', 'SCRAM', 'BRI', 'Integrated Movement Models', 'occup_BOEM_halfdeg_grid_aea_sf_pipl_motus3.RDS')) #hard-coded (needs manual update)!

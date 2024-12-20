@@ -1,9 +1,9 @@
-This documentation is intended to accompany the following scripts run for SCRAM v2.1.4:
+This documentation is intended to accompany the following scripts run for SCRAM v2.1.8:
 1. movement_model_report_addendum_feb2024_rekn.R renamed to movement_model_SCRAM2_1state_rekn.R
 2. movement_model_report_addendum_feb2024_pipl.R renamed to movement_model_SCRAM2_1state_pipl.R
 3. movement_model_report_addendum_feb2024_rost.R renamed to movement_model_SCRAM2_1state_rost.R
 
-The SCRAM v2.1.4 Tool is described in the accompanying 2024 BOEM Report (Goyert et al. 2024).
+The SCRAM v2.1.8 Tool is described in the accompanying 2024 BOEM Report (Goyert et al. 2024).
 The SCRAM v1.0.3 Tool is described in the accompanying 2022 BOEM report (Adams et al. 2022).
 
 The scripts source the following shared functions (~/SCRAM Movement Models/):
@@ -41,13 +41,7 @@ References
 	Washington, DC: U.S. Department of the Interior, Bureau of Ocean Energy Management. 79 p. 
 	Report No.: OCS Study BOEM 2022-071. Contract No.: M19PG00023. Available at: https://espis.boem.gov/Final%20Reports/BOEM_2022-071.pdf 
 
-	Goyert HF, Adams EM, Gilbert A, Gulka J, Loring P, Stepanuk J, and Williams, KA. 2024. 
-	SCRAM 2: Transparent Modeling of Collision Risk for Three Federally Listed Bird Species in Relation to 
-	Offshore Wind Energy Development. 
-	Prepared by the Biodiversity Research Institute, Portland, ME and 
-	U.S. Fish and Wildlife Service, Charlestown, RI, for the 
-	U.S. Department of the Interior, Bureau of Ocean Energy Management, Washington, DC. 
-	Contract No.: M19PG00023. Available at https://briwildlife.org/SCRAM/.
+	Goyert HF, Adams EM, Gilbert A, Gulka J, Loring PH, Stepanuk JEF, Williams, KA (Biodiversity Research Institute, Portland, ME; U.S. Fish and Wildlife Service, Charlestown, RI). 2024. SCRAM 2: transparent modeling of collision risk for three federally listed bird species in relation to offshore wind energy development. Sterling (VA): U.S. Department of the Interior, Bureau of Ocean Energy Management, Sterling, VA. 80 p Obligation No.: M19PG00023. Report No.: BOEM 2024-057. Also available at https://briwildlife.org/SCRAM/. https://espis.boem.gov/Final%20Reports/BOEM_2024-057.pdf
 
 	Loring P, Paton P, McLaren J, Bai H, Janaswamy R, Goyert H, Griffin C, Sievert P. 2019. 
 	Tracking Offshore Occurrence of Common Terns, Endangered Roseate Terns, and Threatened Piping Plovers with VHF Arrays. 
