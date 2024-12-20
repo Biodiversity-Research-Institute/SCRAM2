@@ -83,9 +83,10 @@ source("scripts/get_prop_crh_fhd_SCRAM.R")
 # "2.1.3 - Daffodil Biquinho"
 # "2.1.4 - Effervescent Biquinho" 
 # "2.1.5 - Fervent Biquinho"
-#" 2.1.6 - Glimmering Biquinho"
+# "2.1.6 - Glimmering Biquinho"
+# "2.1.7 - Hovering Biquinho"
 
-SCRAM_version = "2.1.7 - Hovering Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
+SCRAM_version = "2.1.8 - Indefatigable Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
 
 
 options(shiny.trace = F)
@@ -685,7 +686,7 @@ server <- function(input, output, session) {
   #load movement models for calculations and visualization
   spp_move_data <- reactive({
     req(input$migration_calc_type == "occup_model" & length(input$species_input) > 0 & length(species_params_vals$model_input_dist_type) > 0)
-    readRDS(paste0("data/movements/", input$species_input, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble.RDS"))
+    readRDS(paste0("data/movements/", input$species_input, "_occup_BOEM_halfdeg_grid_WGS84_sf_ensemble_112524.RDS"))
   })
   
   output$species_data <-
@@ -1025,7 +1026,7 @@ server <- function(input, output, session) {
         return(NULL)
       } else {  #file header ok
         #correct issue with identical turbine naming
-        wf_file$TurbineModel_MW <- make.unique(wf_file$TurbineModel_MW, sep = "-")
+        wf_file$TurbineModel_MW <- make.unique(as.character(wf_file$TurbineModel_MW), sep = "-")
 
         Sys.sleep(2)  #wait until species data has rendered and then switch also helps with pre-rendering maps, etc.
         updateTabItems(session, inputId = "tabsetpan", selected = "wind_farm_panel")
