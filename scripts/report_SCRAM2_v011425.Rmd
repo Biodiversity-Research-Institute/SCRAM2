@@ -48,7 +48,15 @@ header-includes:
 - \fancyfoot[LE,RO]{\thepage\ of \pageref{LastPage}}
 ---
 
-<!-- Modified: 29 Apr 24 - fixed annual estimate in final figure to be median and minor caption changes -->
+<!-- Modified: 
+29 Apr 24 - fixed annual estimate in final figure to be median and minor caption changes 
+01 Jan 25 - Intermittent issue with report generation for some users - log file suggests: 
+! Missing $ inserted.
+ <inserted text> 
+                 $
+l.140 \newpage
+_" and "#" not allowed in text input for Markdown for conversion to pdf - fixed prior to bringing into markdown
+-->
 
 ```{r setup, include=FALSE}
 library(knitr)
@@ -132,14 +140,14 @@ num_species <- 1
 num_turb_mods <- length(params$model_output[[1]])
 
 ```
-
+<br>
 \newpage
 
 ## Model inputs used for this analysis
 
 <br>
 <br>
-Note about tracking data inputs: the SCRAM2 movement model uses automated radio telemetry (Motus) data for Red Knots, Piping Plovers, and Roseate Terns, as well as data from GPS and Argos transmitters for Red Knots. Sample sizes are n=240 Red Knots (Motus), n=106 Red Knots (GPS/Argos), n=107 Piping Plovers (Motus), and n=134 Roseate Terns (Motus). Due to when usable tracking data were collected in the study area, collision risk predictions using tracking data are provided for the months of August to November (Red Knots) and May-August (Piping Plovers and Roseate Terns). The Band 2012 Annex 6 model does not use tracking data to help estimate occupancy; instead, it assumes an even distribution of birds throughout a predefined migratory front. Thus, it estimates collisions for all 12 months of the year. For more information, see reports available at https://briwildlife.org/scram/
+Note about tracking data inputs: the SCRAM2 movement model uses automated radio telemetry (Motus) data for Red Knots, Piping Plovers, and Roseate Terns, as well as data from GPS and Argos transmitters for Red Knots. Sample sizes are n=240 Red Knots (Motus), n=106 Red Knots (GPS/Argos), n=107 Piping Plovers (Motus), and n=134 Roseate Terns (Motus). Due to when usable tracking data were collected in the study area, collision risk predictions using tracking data are provided for the months of August to November (Red Knots) and May-August (Piping Plovers and Roseate Terns). The Band 2012 Annex 6 model does not use tracking data to help estimate occupancy; instead, it assumes an even distribution of birds throughout a predefined migratory front. Thus, it estimates collisions for all 12 months of the year. For more information, see reports available at https://www.collisionrisk.org/scram.
 <br>
 <br>
 
@@ -397,10 +405,8 @@ kbl(turb_params_table_pt2, booktabs=T, caption = "Monthly (Jul-Dec) wind farm op
   column_spec(3:8,width = "0.62in")
 
 ```
-
 <br>
 <br>
-
 ```{r, echo=FALSE}
 
 if (params$migration_calc_type == "occup_model") {
@@ -506,12 +512,9 @@ if(params$migration_calc_type == "occup_model") {
 cat('\n\n\n\n')
 
 ```
-
 <br>
 \newpage
-
 ## Results from the SCRAM2 simulation
-
 ``` {r, table_out_1, echo=FALSE, warning=FALSE, message = FALSE,  results = "asis"}
 
 #print this table only if the calcs using the occupancy occup_model
@@ -600,10 +603,8 @@ cat('\n\n\n\n')
 
 
 ```
-
 <br>
 <br>
-
 ```{r, table_out_2, echo=FALSE, warning=FALSE, message = FALSE,  results = "asis"}
 
 model_out_melt <- data.frame()
@@ -677,10 +678,8 @@ kbl(annual_summary, booktabs=T, align = "lccc", digits = 32,
 
 
 ```
-
 <br>
 <br>
-
 ```{r, echo=FALSE}
 
 if (params$migration_calc_type == "occup_model") {
@@ -783,10 +782,8 @@ for(s in 1:num_species){
 }
 
 ```
-
 <br>
 <br>
-
 ```{r, echo=FALSE}
 
 if (params$migration_calc_type == "occup_model") {

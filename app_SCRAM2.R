@@ -59,6 +59,8 @@
 # 09 Oct 24 - 2.1.7 - Fixed issue where you fail to get the state due west when the location is close to shore; correct issue with identical turbine naming; 
 #  update BOEM lease areas; fixed validation issue with <1km WF and issue with crude coastal boundary when trying to assign state
 # 20 Dec 24 - 2.1.8 - SCRAM v2.1.8 reassigns 11 duplicate tag IDs for Roseate Terns, reassigns 10 duplicate tag IDs for Piping Plovers, and removes 2 static Piping Plovers with long, uninformed data gaps
+# 14 Jan 25 - 2.1.9 - Intermittent RMarkdown issue where report not being generated with error! Missing $ inserted. <inserted text>                 $ - erroneously associated with \newpage
+#  but appears to be associated with use of "_" (underscore) and "#" (pound, hash) symbols in the project name or modeler inputs - replaced with "-"
 
 # load scripts
 source("scripts/helpers.R")
@@ -86,8 +88,9 @@ source("scripts/get_prop_crh_fhd_SCRAM.R")
 # "2.1.5 - Fervent Biquinho"
 # "2.1.6 - Glimmering Biquinho"
 # "2.1.7 - Hovering Biquinho"
+# "2.1.8 - Indefatigable Biquinho"
 
-SCRAM_version = "2.1.8 - Indefatigable Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
+SCRAM_version = "2.1.9 - Jocular Biquinho"  #https://www.cayennediane.com/big-list-of-hot-peppers/
 
 
 options(shiny.trace = F)
@@ -1982,7 +1985,7 @@ server <- function(input, output, session) {
     content = function(file) {
       # copy the report file to a temporary directory before processing it, in
       # case we don't have write permissions to the current working dir (which can happen when deployed).
-      tempReport <- file.path(tempdir(), "report_SCRAM2_v042924.Rmd") 
+      tempReport <- file.path(tempdir(), "report_SCRAM2_v011425.Rmd") 
       img1 <- file.path(tempdir(), "SCRAM_logo_2_4inch.jpg")
       img2 <- file.path(tempdir(), "BRI_color_logo_no_words.png")
       img3 <- file.path(tempdir(), "URI.png")
@@ -2005,8 +2008,8 @@ server <- function(input, output, session) {
       if(input$migration_calc_type == "occup_model") {
         params <- list(
           SCRAM_version = SCRAM_version,
-          project = input$project_name,
-          modeler = input$modeler,
+          project = gsub("[_#]", "-", input$project_name), # "_" and "#" not allowed in text input for Markdown for conversion to pdf
+          modeler = gsub("[_#]", "-", input$modeler),
           run_start_time = isolate(run_times$start),
           run_end_time = isolate(run_times$end),
           iterations = input$iter_slider,
